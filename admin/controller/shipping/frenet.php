@@ -82,6 +82,12 @@ class Frenet extends \Opencart\System\Engine\Controller {
 			$data['shipping_frenet_contrato_senha'] = $this->config->get('shipping_frenet_contrato_senha');
 		}
 
+		if (isset($this->request->post['shipping_frenet_contrato_token'])) {
+			$data['shipping_frenet_contrato_token'] = $this->request->post['shipping_frenet_contrato_token'];
+		} else {
+			$data['shipping_frenet_contrato_token'] = $this->config->get('shipping_frenet_contrato_token');
+		}
+
 		if (isset($this->request->post['shipping_frenet_sort_order'])) {
 			$data['shipping_frenet_sort_order'] = $this->request->post['shipping_frenet_sort_order'];
 		} else {

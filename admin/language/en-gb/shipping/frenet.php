@@ -25,6 +25,7 @@ $_['entry_frenet_key_token']   	= 'Token';
 
 // Help
 $_['help_frenet_key']         = 'Chave e senha de acesso ao webservice do Frenet.';
+$_['help_frenet_token']       = 'Token de acesso à API REST da Frenet.';
 $_['help_msg_prazo']          = '%s - Em média %d dia(s)';
 
 // Error
