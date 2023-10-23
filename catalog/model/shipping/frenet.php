@@ -51,7 +51,7 @@ class Frenet extends \Opencart\System\Engine\Model {
 
         foreach ($produtos as $prod) {
 			$qty = $prod['quantity'];
-            $shippingItem = new stdClass();
+            $shippingItem = new \stdClass();
 
             $shippingItem->Weight = $this->getPesoEmKg($prod['weight_class_id'], $prod['weight']) / $qty;
             $shippingItem->Length = $this->getDimensaoEmCm($prod['length_class_id'], $prod['length']);
@@ -71,49 +71,54 @@ class Frenet extends \Opencart\System\Engine\Model {
         }
 
         $coupon = $this->get_coupon();
+        $token = $this->config->get('shipping_frenet_contrato_token');
+        
+        $objRequest = new \stdClass();
+        $objRequest->Coupom = $coupon;
+        $objRequest->PlatformName = "Opencartv4";
+        $objRequest->PlatformVersion = VERSION;
+        $objRequest->SellerCEP = $this->cep_origem;
+        $objRequest->RecipientCEP = $this->cep_destino;
+        $objRequest->ShipmentInvoiceValue = $this->cart->getSubTotal();
+        $objRequest->ShippingItemArray = $shippingItemArray;
+        $objRequest->RecipientCountry = $this->pais_destino;
+        $jsonRequest = json_encode($objRequest, JSON_PRETTY_PRINT);
 
-        $service_param = array (
-            'quoteRequest' => array(
-                'Username' => $this->config->get('shipping_frenet_contrato_codigo'),
-                'Password' => $this->config->get('shipping_frenet_contrato_senha'),
-                'Token' => $this->config->get('shipping_frenet_contrato_token'),
-                'Coupom' => $coupon,
-                'PlatformName' => 'Magento',
-                'PlatformVersion' => VERSION,
-                'SellerCEP' => $this->cep_origem,
-                'RecipientCEP' => $this->cep_destino,
-                'RecipientDocument' => '',
-                'ShipmentInvoiceValue' => $this->cart->getSubTotal(),
-                'ShippingItemArray' => $shippingItemArray,
-                'RecipientCountry' => $this->pais_destino
-            )
-        );
+        $this->setApiUrl();
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $this->url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+        curl_setopt($ch, CURLOPT_HEADER, FALSE);
+        curl_setopt($ch, CURLOPT_POST, TRUE);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonRequest);
 
-        //invocarFrenet($service_param);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+            "Accept: application/json",
+            "Content-Type: application/json",
+            "token: $token"
+          ));
 
-        //$this->log->write('service_param: ' . print_r($service_param, true));
+        $response_json = curl_exec($ch);
+        curl_close($ch);
 
-        $this->setUrl();
-
-        // Gets the WebServices response.
-        ini_set('soap.wsdl_cache_enabled', '0');
-        $client = new SoapClient($this->url, array("soap_version" => SOAP_1_1,"trace" => 1));
-        $response = $client->__soapCall("GetShippingQuote", array($service_param));
-
-        //$this->log->write(  $client->__getLastRequest());
-        //$this->log->write(  $client->__getLastResponse());
+        $response = json_decode($response_json);
 
         $values = array();
 
-        if ( isset( $response->GetShippingQuoteResult ) && isset($response->GetShippingQuoteResult->ShippingSevicesArray)
-                    && isset($response->GetShippingQuoteResult->ShippingSevicesArray->ShippingSevices)) {
-                    $shippingServices = $response->GetShippingQuoteResult->ShippingSevicesArray->ShippingSevices;
+        if ( isset( $response ) && isset($response->ShippingSevicesArray) ) {
+                    $shippingServices = $response->ShippingSevicesArray;
                     $count = count(is_array($shippingServices) ? $shippingServices : []);
                     if($count == 1) {
                         $servicosArray[0] = $shippingServices;
                     } else {
                         $servicosArray = $shippingServices;
                     }
+
+            $frenet_tax_class_id = $this->config->get('frenet_tax_class_id');
+            $config_tax = $this->config->get('config_tax');
+            $config_currency = $this->session->data['currency'];
+
+            if (empty($frenet_tax_class_id)) { $frenet_tax_class_id = "1"; }
 					
             foreach($servicosArray as $servicos){
                 if (!isset($servicos->ServiceCode) || $servicos->ServiceCode . '' == '' || !isset($servicos->ShippingPrice)) {
@@ -133,18 +138,19 @@ class Frenet extends \Opencart\System\Engine\Model {
                     $label = $servicos->ServiceDescription;
                 }
 
+
                 $cost  = floatval(str_replace(",", ".", (string) $servicos->ShippingPrice));
                 if (version_compare(VERSION, '2.2') < 0) {
-                    $text = $this->currency->format($this->tax->calculate($cost, $this->config->get('frenet_tax_class_id'), $this->config->get('config_tax')));
+                    $text = $this->currency->format($this->tax->calculate($cost, $frenet_tax_class_id, $config_tax));
                 } else {
-                    $text = $this->currency->format($this->tax->calculate($cost, $this->config->get('frenet_tax_class_id'), $this->config->get('config_tax')), $this->session->data['currency']);
+                    $text = $this->currency->format($this->tax->calculate($cost, $frenet_tax_class_id, $config_tax), $config_currency);
                 }
 
                 $this->quote_data[$servicos->ServiceCode] = array(
                     'code'         => 'frenet.' . $servicos->ServiceCode,
-                    'title'        => $label,
+                    'name'        => $label,
                     'cost'         => $cost,
-                    'tax_class_id' => $this->config->get('frenet_tax_class_id'),
+                    'tax_class_id' => $frenet_tax_class_id,
                     'text'         => $text
                 );
 
@@ -156,7 +162,7 @@ class Frenet extends \Opencart\System\Engine\Model {
 
             $method_data = array(
                 'code'       => 'frenet',
-                'title'      => $this->language->get('text_title'),
+                'name'      => $this->language->get('text_title'),
                 'quote'      => $this->quote_data,
                 'sort_order' => $this->config->get('shipping_frenet_sort_order'),
                 'error'      => false
@@ -165,7 +171,7 @@ class Frenet extends \Opencart\System\Engine\Model {
         else if(!empty($this->mensagem_erro)){
             $method_data = array(
                 'code'       => 'frenet',
-                'title'      => $this->language->get('text_title'),
+                'name'      => $this->language->get('text_title'),
                 'quote'      => $this->quote_data,
                 'sort_order' => $this->config->get('shipping_frenet_sort_order'),
                 'error'      => implode('<br />', $this->mensagem_erro)
@@ -175,13 +181,6 @@ class Frenet extends \Opencart\System\Engine\Model {
 		return $method_data;
 	}
 
-    	// prepara a url de chamada ao site dos frenet
-	private function setUrl(){
-		
-		$url = "http://services.frenet.com.br/logistics/ShippingQuoteWS.asmx?wsdl";
-
-		$this->url = $url;
-	}
 
 	// prepara a url de chamada ao site dos frenet
 	private function setApiUrl(){
