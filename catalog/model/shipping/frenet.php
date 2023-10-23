@@ -26,155 +26,169 @@ class Frenet extends \Opencart\System\Engine\Model {
      * @param $address
      * @return array
      */
-    public function getQuote($address) {
-		
-		$this->load->language('extension/opencartfrenetv4/shipping/frenet');
-
-		$method_data = array();
-
-        $produtos = $this->cart->getProducts();
-
-        // obtém só a parte numérica do CEP
-        $this->cep_origem = preg_replace ("/[^0-9]/", '', $this->config->get('shipping_frenet_postcode'));
-        $this->cep_destino = preg_replace ("/[^0-9]/", '', $address['postcode']);
-
-        $this->pais_destino='BR';
-        $this->load->model('localisation/country');
-        $country_info = $this->model_localisation_country->getCountry($address['country_id']);
-        if ($country_info) {
-            $this->pais_destino = $country_info['iso_code_2'];
-        }
-
-        // product array
-        $shippingItemArray = array();
-        $count = 0;
-
-        foreach ($produtos as $prod) {
-			$qty = $prod['quantity'];
-            $shippingItem = new \stdClass();
-
-            $shippingItem->Weight = $this->getPesoEmKg($prod['weight_class_id'], $prod['weight']) / $qty;
-            $shippingItem->Length = $this->getDimensaoEmCm($prod['length_class_id'], $prod['length']);
-            $shippingItem->Height = $this->getDimensaoEmCm($prod['length_class_id'], $prod['height']);
-            $shippingItem->Width = $this->getDimensaoEmCm($prod['length_class_id'], $prod['width']);
-            $shippingItem->Diameter = 0;
-            $shippingItem->SKU = '';
-            $shippingItem->Category = '';
-            $shippingItem->isFragile=false;
-
-         //   $this->log->write( 'shippingItem: ' . print_r($shippingItem, true));
-		 
-			$shippingItem->Quantity = $qty;
-
-            $shippingItemArray[$count] = $shippingItem;
-            $count++;
-        }
-
-        $coupon = $this->get_coupon();
-        $token = $this->config->get('shipping_frenet_contrato_token');
+    public function getQuote($address) {        
+        $method_data = array();
         
-        $objRequest = new \stdClass();
-        $objRequest->Coupom = $coupon;
-        $objRequest->PlatformName = "Opencartv4";
-        $objRequest->PlatformVersion = VERSION;
-        $objRequest->SellerCEP = $this->cep_origem;
-        $objRequest->RecipientCEP = $this->cep_destino;
-        $objRequest->ShipmentInvoiceValue = $this->cart->getSubTotal();
-        $objRequest->ShippingItemArray = $shippingItemArray;
-        $objRequest->RecipientCountry = $this->pais_destino;
-        $jsonRequest = json_encode($objRequest, JSON_PRETTY_PRINT);
-
-        $this->setApiUrl();
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $this->url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
-        curl_setopt($ch, CURLOPT_HEADER, FALSE);
-        curl_setopt($ch, CURLOPT_POST, TRUE);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonRequest);
-
-        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-            "Accept: application/json",
-            "Content-Type: application/json",
-            "token: $token"
-          ));
-
-        $response_json = curl_exec($ch);
-        curl_close($ch);
-
-        $response = json_decode($response_json);
-
-        $values = array();
-
-        if ( isset( $response ) && isset($response->ShippingSevicesArray) ) {
-                    $shippingServices = $response->ShippingSevicesArray;
-                    $count = count(is_array($shippingServices) ? $shippingServices : []);
-                    if($count == 1) {
-                        $servicosArray[0] = $shippingServices;
-                    } else {
-                        $servicosArray = $shippingServices;
-                    }
-
-            $frenet_tax_class_id = $this->config->get('frenet_tax_class_id');
-            $config_tax = $this->config->get('config_tax');
-            $config_currency = $this->session->data['currency'];
-
-            if (empty($frenet_tax_class_id)) { $frenet_tax_class_id = "1"; }
-					
-            foreach($servicosArray as $servicos){
-                if (!isset($servicos->ServiceCode) || $servicos->ServiceCode . '' == '' || !isset($servicos->ShippingPrice)) {
-                    continue;
-                }
-
-                if(!isset($servicos->ShippingPrice))
-                    continue;
-
-                if (isset($servicos->DeliveryTime))
-                    $deliveryTime=$servicos->DeliveryTime;
-
-                if ( $deliveryTime > 0 && $this->config->get('shipping_frenet_msg_prazo') ) {
-                    $label = sprintf($this->config->get('shipping_frenet_msg_prazo'), $servicos->ServiceDescription, (int)$deliveryTime);
-                }
-                else{
-                    $label = $servicos->ServiceDescription;
-                }
-
-
-                $cost  = floatval(str_replace(",", ".", (string) $servicos->ShippingPrice));
-                if (version_compare(VERSION, '2.2') < 0) {
-                    $text = $this->currency->format($this->tax->calculate($cost, $frenet_tax_class_id, $config_tax));
-                } else {
-                    $text = $this->currency->format($this->tax->calculate($cost, $frenet_tax_class_id, $config_tax), $config_currency);
-                }
-
-                $this->quote_data[$servicos->ServiceCode] = array(
-                    'code'         => 'frenet.' . $servicos->ServiceCode,
-                    'name'        => $label,
-                    'cost'         => $cost,
-                    'tax_class_id' => $frenet_tax_class_id,
-                    'text'         => $text
-                );
-
+        try {
+            $this->load->language('extension/opencartfrenetv4/shipping/frenet');
+    
+            $produtos = $this->cart->getProducts();
+    
+            // obtém só a parte numérica do CEP
+            $this->cep_origem = preg_replace ("/[^0-9]/", '', $this->config->get('shipping_frenet_postcode'));
+            $this->cep_destino = preg_replace ("/[^0-9]/", '', $address['postcode']);
+    
+            $this->pais_destino='BR';
+            $this->load->model('localisation/country');
+            $country_info = $this->model_localisation_country->getCountry($address['country_id']);
+            if ($country_info) {
+                $this->pais_destino = $country_info['iso_code_2'];
             }
-        }
-
-        // ajustes finais
-        if ($this->quote_data) {
-
+    
+            // product array
+            $shippingItemArray = array();
+            $count = 0;
+    
+            foreach ($produtos as $prod) {
+                $qty = $prod['quantity'];
+                $shippingItem = new \stdClass();
+    
+                $shippingItem->Weight = $this->getPesoEmKg($prod['weight_class_id'], $prod['weight']) / $qty;
+                $shippingItem->Length = $this->getDimensaoEmCm($prod['length_class_id'], $prod['length']);
+                $shippingItem->Height = $this->getDimensaoEmCm($prod['length_class_id'], $prod['height']);
+                $shippingItem->Width = $this->getDimensaoEmCm($prod['length_class_id'], $prod['width']);
+                $shippingItem->Diameter = 0;
+                $shippingItem->SKU = '';
+                $shippingItem->Category = '';
+                $shippingItem->isFragile=false;
+    
+             //   $this->log->write( 'shippingItem: ' . print_r($shippingItem, true));
+             
+                $shippingItem->Quantity = $qty;
+    
+                $shippingItemArray[$count] = $shippingItem;
+                $count++;
+            }
+    
+            $coupon = $this->get_coupon();
+            $token = $this->config->get('shipping_frenet_contrato_token');
+            
+            $objRequest = new \stdClass();
+            $objRequest->Coupom = $coupon;
+            $objRequest->PlatformName = "Opencartv4";
+            $objRequest->PlatformVersion = VERSION;
+            $objRequest->SellerCEP = $this->cep_origem;
+            $objRequest->RecipientCEP = $this->cep_destino;
+            $objRequest->ShipmentInvoiceValue = $this->cart->getSubTotal();
+            $objRequest->ShippingItemArray = $shippingItemArray;
+            $objRequest->RecipientCountry = $this->pais_destino;
+            $jsonRequest = json_encode($objRequest, JSON_PRETTY_PRINT);
+    
+            $this->setApiUrl();
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $this->url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+            curl_setopt($ch, CURLOPT_HEADER, FALSE);
+            curl_setopt($ch, CURLOPT_POST, TRUE);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonRequest);
+    
+            curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+                "Accept: application/json",
+                "Content-Type: application/json",
+                "token: $token"
+              ));
+    
+            $response_json = curl_exec($ch);
+            curl_close($ch);
+    
+            $response = json_decode($response_json);
+    
+            $values = array();
+    
+            if ( isset( $response ) && isset($response->ShippingSevicesArray) ) {
+                        $shippingServices = $response->ShippingSevicesArray;
+                        $count = count(is_array($shippingServices) ? $shippingServices : []);
+                        if($count == 1) {
+                            $servicosArray[0] = $shippingServices;
+                        } else {
+                            $servicosArray = $shippingServices;
+                        }
+    
+                $frenet_tax_class_id = $this->config->get('frenet_tax_class_id');
+                $config_tax = $this->config->get('config_tax');
+                $config_currency = $this->session->data['currency'];
+    
+                if (empty($frenet_tax_class_id)) { $frenet_tax_class_id = "1"; }
+                        
+                foreach($servicosArray as $servicos){
+                    if (!isset($servicos->ServiceCode) || $servicos->ServiceCode . '' == '' || !isset($servicos->ShippingPrice)) {
+                        continue;
+                    }
+    
+                    if(!isset($servicos->ShippingPrice))
+                        continue;
+    
+                    if (isset($servicos->DeliveryTime))
+                        $deliveryTime=$servicos->DeliveryTime;
+    
+                    if ( $deliveryTime > 0 && $this->config->get('shipping_frenet_msg_prazo') ) {
+                        $label = sprintf($this->config->get('shipping_frenet_msg_prazo'), $servicos->ServiceDescription, (int)$deliveryTime);
+                    }
+                    else{
+                        $label = $servicos->ServiceDescription;
+                    }
+    
+    
+                    $cost  = floatval(str_replace(",", ".", (string) $servicos->ShippingPrice));
+                    if (version_compare(VERSION, '2.2') < 0) {
+                        $text = $this->currency->format($this->tax->calculate($cost, $frenet_tax_class_id, $config_tax));
+                    } else {
+                        $text = $this->currency->format($this->tax->calculate($cost, $frenet_tax_class_id, $config_tax), $config_currency);
+                    }
+    
+                    $this->quote_data[$servicos->ServiceCode] = array(
+                        'code'         => 'frenet.' . $servicos->ServiceCode,
+                        'name'        => $label,
+                        'cost'         => $cost,
+                        'tax_class_id' => $frenet_tax_class_id,
+                        'text'         => $text
+                    );
+    
+                }
+            }
+    
+            // ajustes finais
+            if ($this->quote_data) {
+    
+                $method_data = array(
+                    'code'       => 'frenet',
+                    'name'      => $this->language->get('text_title'),
+                    'quote'      => $this->quote_data,
+                    'sort_order' => $this->config->get('shipping_frenet_sort_order'),
+                    'error'      => false
+                );
+            }
+            else if(!empty($this->mensagem_erro)){
+                $method_data = array(
+                    'code'       => 'frenet',
+                    'name'      => $this->language->get('text_title'),
+                    'quote'      => $this->quote_data,
+                    'sort_order' => $this->config->get('shipping_frenet_sort_order'),
+                    'error'      => implode('<br />', $this->mensagem_erro)
+                );
+            }            
+        } catch (\Throwable $th) {
+            $this->mensagem_erro = $th->getMessage() . ' in ' . $th->getFile() . ' on line ' . $th->getLine();
+            if ($this->config->get('config_error_log')) {
+                $this->log->write($this->mensagem_erro);
+            }
+    
             $method_data = array(
                 'code'       => 'frenet',
                 'name'      => $this->language->get('text_title'),
-                'quote'      => $this->quote_data,
+                'quote'      => array(),
                 'sort_order' => $this->config->get('shipping_frenet_sort_order'),
-                'error'      => false
-            );
-        }
-        else if(!empty($this->mensagem_erro)){
-            $method_data = array(
-                'code'       => 'frenet',
-                'name'      => $this->language->get('text_title'),
-                'quote'      => $this->quote_data,
-                'sort_order' => $this->config->get('shipping_frenet_sort_order'),
-                'error'      => implode('<br />', $this->mensagem_erro)
+                'error'      => $this->mensagem_erro
             );
         }
 
