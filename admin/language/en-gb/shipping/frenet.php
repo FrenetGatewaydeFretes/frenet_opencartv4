@@ -1,8 +1,6 @@
 <?php
 // Heading
 $_['heading_title']           = 'Frenet';
-#shipping_frenet_status
-#shipping_frenet_sort_order
 
 // Text
 $_['text_extension']          = 'Extensões';
@@ -17,14 +15,11 @@ $_['entry_postcode']          = 'CEP de origem';
 $_['entry_sort_order']        = 'Posição';
 $_['entry_frenet_key']        = 'Chave de acesso';
 $_['entry_msg_prazo']         = 'Mensagem que exibe o prazo de entrega';
-$_['entry_frenet_key_codigo'] = 'Chave';
-$_['entry_frenet_key_senha']  = 'Senha';
 
 $_['entry_frenet_token']        = 'Token';
 $_['entry_frenet_key_token']   	= 'Token';
 
 // Help
-$_['help_frenet_key']         = 'Chave e senha de acesso ao webservice do Frenet.';
 $_['help_frenet_token']       = 'Token de acesso à API REST da Frenet.';
 $_['help_msg_prazo']          = '%s - Em média %d dia(s)';
 
