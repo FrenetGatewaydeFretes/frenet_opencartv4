@@ -24,7 +24,7 @@ Configuração
 ---------------------------
 1 - CEP de Origem: Informe o CEP do local de origem das cotações de frete<br />;
 2 - Mensagem que exibe o prazo de entrega: Caso seja informada sistema irá montar uma mensagem amigavél ao usuário substituindo o %s e o %d respectivamente por método de entrega e quantidade de dias. Ex: %s - Em média %d dia(s)<br />;
-3 - Chave de acesso - Chave: Usuário de acesso ao webservice do Frenet (acesse o painel administrativo, em Dados Cadastrais, obtenha esta informação<br />;
+3 - Chave de acesso - Token: Token de acesso ao cotador REST da Frenet (acesse o painel administrativo, em Dados Cadastrais, obtenha esta informação<br />;
 4 - Situação: Habilite o módulo para utilizá-lo<br />;
 5 - Posição: Indicar em qual posição o resultado da Frenet deve ser exibido.
 
