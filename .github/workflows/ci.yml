@@ -65,17 +65,17 @@ jobs:
       matrix:
         include:
           - { opencart: 4.0.0.0, php: '8.0' }
-          - { opencart: 4.0.0.0, php: '8.3' }
+          - { opencart: 4.0.0.0, php: '8.1' }
           - { opencart: 4.0.1.1, php: '8.0' }
-          - { opencart: 4.0.1.1, php: '8.3' }
+          - { opencart: 4.0.1.1, php: '8.1' }
           - { opencart: 4.0.2.0, php: '8.0' }
           - { opencart: 4.0.2.0, php: '8.3' }
           - { opencart: 4.0.2.3, php: '8.0' }
           - { opencart: 4.0.2.3, php: '8.3' }
           - { opencart: 4.1.0.0, php: '8.0' }
-          - { opencart: 4.1.0.0, php: '8.4' }
+          - { opencart: 4.1.0.0, php: '8.5' }
           - { opencart: 4.1.0.3, php: '8.0' }
-          - { opencart: 4.1.0.3, php: '8.4' }
+          - { opencart: 4.1.0.3, php: '8.5' }
           - { opencart: 4.1.0.4, php: '8.1' }
           - { opencart: 4.1.0.4, php: '8.5' }
     steps:
