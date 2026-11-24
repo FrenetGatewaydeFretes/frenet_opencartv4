@@ -3,3 +3,10 @@
 hml_stage
 .vscode
 /.vs
+/vendor/
+/.cache/
+/.php-cs-fixer.cache
+/tests/e2e/node_modules/
+/tests/e2e/.work/
+/tests/e2e/test-results/
+/tests/e2e/playwright-report/

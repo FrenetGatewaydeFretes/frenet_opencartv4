@@ -1,0 +1,8 @@
+parameters:
+    level: 6
+    phpVersion: 80000
+    paths:
+        - system/library/frenet
+    bootstrapFiles:
+        - tests/stubs/opencart.php
+    tmpDir: .cache/phpstan
