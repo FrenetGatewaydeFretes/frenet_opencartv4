@@ -43,4 +43,12 @@ final class LogTest extends TestCase {
 		self::assertStringNotContainsString('secret', $writer->lines[0]);
 		self::assertSame('DEBUG Request {"Token":"********","headers":{"token":"********","Content-Type":"application/json"}}', $writer->lines[0]);
 	}
+
+	public function testKeepsAnAnswerWithInvalidUtf8(): void {
+		$writer = new CoreLog(Log::FILENAME);
+
+		(new Log($writer, true))->debug('Response', ['body' => "Entrega em S\xE3o Paulo"]);
+
+		self::assertSame("DEBUG Response {\"body\":\"Entrega em S\u{FFFD}o Paulo\"}", $writer->lines[0]);
+	}
 }
