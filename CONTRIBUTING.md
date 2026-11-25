@@ -198,6 +198,10 @@ tests/e2e/run.sh 4.1.0.4 8.1 opencartfrenetv4.ocmod.zip
 
 O `run.sh` usa o Playwright de `tests/e2e/node_modules` quando há Node na máquina e, sem ele, a imagem `mcr.microsoft.com/playwright` da mesma versão do `package.json`. A loja responde em `http://localhost:8080` (mude com `E2E_PORT`) e é apagada no fim; com `E2E_KEEP=1`, ela continua de pé para investigar. Os resultados ficam em `tests/e2e/.work/artifacts/<versão>-php<versão>`.
 
+## Actions do CI
+
+As actions dos workflows são fixadas pelo hash completo do commit, com a versão em comentário (`actions/checkout@<hash> # v7.0.1`), como recomenda o [guia de segurança do GitHub Actions](https://docs.github.com/en/actions/reference/security/secure-use): uma tag pode ser movida para outro commit, o hash não. O Dependabot (`.github/dependabot.yml`) abre toda semana um PR para a `3.0-develop` com as versões novas, atualizando hash e comentário juntos. Ao adicionar uma action, use o mesmo formato.
+
 ## Branches e commits
 
 - `main`: só recebe versões publicadas.
