@@ -58,6 +58,15 @@ final class PlatformTest extends TestCase {
 		self::assertSame($sku_in_code, $platform->hasSkuInProductCode());
 	}
 
+	public function testTreatsAnUnknownVersionAsTheFirstRelease(): void {
+		$platform = new Platform('');
+
+		self::assertSame('extension/x|y', $platform->getEventAction('extension/x', 'y'));
+		self::assertCount(6, $platform->getEventArguments('code', 'description', 'trigger', 'action'));
+		self::assertTrue($platform->hasProductSpecialTable());
+		self::assertFalse($platform->hasSkuInProductCode());
+	}
+
 	public function testKeepsTheVersion(): void {
 		self::assertSame('4.0.2.3', (new Platform('4.0.2.3'))->getVersion());
 	}

@@ -20,6 +20,12 @@ if (preg_match('#^/mock/delay/(\d+)$#', $path, $match)) {
 	return;
 }
 
+if ($path === '/mock/redirect') {
+	header('Location: /mock/echo', true, 302);
+
+	return;
+}
+
 if ($path === '/mock/echo') {
 	echo json_encode([
 		'method'  => $method,

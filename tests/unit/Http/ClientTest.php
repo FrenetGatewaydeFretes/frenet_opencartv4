@@ -47,6 +47,26 @@ final class ClientTest extends TestCase {
 		}
 	}
 
+	public function testRefusesProtocolsOtherThanHttpAndHttps(): void {
+		try {
+			(new Client())->post('file:///etc/hostname', '', [], 1);
+			self::fail('Expected the file protocol to be refused');
+		} catch (Exception $exception) {
+			self::assertSame(CURLE_UNSUPPORTED_PROTOCOL, $exception->getCode());
+		}
+	}
+
+	public function testReturnsTheRedirectInsteadOfFollowingIt(): void {
+		$response = (new Client())->post($this->url('/mock/redirect'), '', [], 5);
+
+		self::assertSame(302, $response->getStatusCode());
+		self::assertSame('', $response->getBody());
+	}
+
+	public function testAnswersNothingWhenThereIsNothingToSend(): void {
+		self::assertSame([], (new Client())->postAll($this->url('/mock/echo'), [], [], 5));
+	}
+
 	public function testKeepsEachAnswerOfTheParallelRequestsUnderItsKey(): void {
 		$answers = (new Client())->postAll($this->url('/mock/delay/1'), ['full' => '{"n":0}', 1 => '{"n":1}', 2 => '{"n":2}'], [], 5);
 
