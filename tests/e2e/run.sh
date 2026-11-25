@@ -21,12 +21,16 @@ dc() {
 	docker compose -f "$DIR/compose.yml" "$@"
 }
 
+store_log() {
+	dc exec -T web sh -c 'cat "$(php -r "require \"/var/www/html/config.php\"; echo DIR_LOGS;")$1" 2>/dev/null' sh "$1"
+}
+
 collect() {
 	local status=$?
 
 	mkdir -p "$ARTIFACTS"
 	dc logs --no-color > "$ARTIFACTS/compose.log" 2>&1 || true
-	dc exec -T web sh -c 'cd "$(php -r "require \"/var/www/html/config.php\"; echo DIR_LOGS;")" && cat error.log frenet.log 2>/dev/null' > "$ARTIFACTS/opencart.log" 2>&1 || true
+	{ store_log error.log; store_log frenet.log; } > "$ARTIFACTS/opencart.log" 2>&1 || true
 	[ -d "$DIR/test-results" ] && cp -r "$DIR/test-results" "$ARTIFACTS/" || true
 	[ "${E2E_KEEP:-0}" = 1 ] || dc down -v --remove-orphans > /dev/null 2>&1 || true
 	exit $status
@@ -103,7 +107,7 @@ fi
 
 echo "Checking the library and the logs"
 dc exec -T -u www-data web php /check-library.php || fail "the Frenet library did not load with the OpenCart autoloader"
-php_errors=$(dc exec -T web sh -c 'cat "$(php -r "require \"/var/www/html/config.php\"; echo DIR_LOGS;")error.log" 2>/dev/null' | grep -ci 'frenet' || true)
+php_errors=$(store_log error.log | grep -ci 'frenet' || true)
 [ "$php_errors" = 0 ] || fail "error.log has $php_errors line(s) about Frenet"
 
 echo "OK: OpenCart $OC_VERSION (PHP $PHP_VERSION): Frenet installed, settings opened and library loaded"
