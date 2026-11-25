@@ -72,10 +72,25 @@ final class ConfigTest extends TestCase {
 		self::assertSame($attempts, $config->getAttempts());
 	}
 
+	public function testUsesTheDefaultTimeoutAndAttemptsWhenTheSavedValueIsNotANumber(): void {
+		$config = $this->createConfig(['shipping_frenet_timeout' => 'abc', 'shipping_frenet_attempts' => ['2']]);
+
+		self::assertSame(Config::TIMEOUT_DEFAULT, $config->getTimeout());
+		self::assertSame(Config::ATTEMPTS_DEFAULT, $config->getAttempts());
+	}
+
+	public function testReadsAListAsEmptyAndKeepsBooleansAndNumbers(): void {
+		$config = $this->createConfig(['shipping_frenet_token' => ['abc'], 'shipping_frenet_status' => true, 'shipping_frenet_sort_order' => 4]);
+
+		self::assertSame('', $config->getToken());
+		self::assertTrue($config->isEnabled());
+		self::assertSame(4, $config->getSortOrder());
+	}
+
 	/**
 	 * Config filled with the given settings.
 	 *
-	 * @param array<string, string> $settings
+	 * @param array<string, mixed> $settings
 	 *
 	 * @return Config
 	 */

@@ -59,7 +59,7 @@ class Config {
 	 * @return string
 	 */
 	public function getToken(): string {
-		return trim((string)$this->get('token'));
+		return trim($this->get('token'));
 	}
 
 	/**
@@ -68,7 +68,7 @@ class Config {
 	 * @return string
 	 */
 	public function getOriginPostcode(): string {
-		return (string)preg_replace('/\D/', '', (string)$this->get('postcode'));
+		return (string)preg_replace('/\D/', '', $this->get('postcode'));
 	}
 
 	/**
@@ -77,7 +77,7 @@ class Config {
 	 * @return string
 	 */
 	public function getDeliveryTimeMessage(): string {
-		return trim((string)$this->get('msg_prazo'));
+		return trim($this->get('msg_prazo'));
 	}
 
 	/**
@@ -117,7 +117,7 @@ class Config {
 	}
 
 	/**
-	 * Integer setting clamped to the supported range, or the default when the store owner left it empty.
+	 * Integer setting clamped to the supported range, or the default when the saved value is not a number.
 	 *
 	 * @param string $key
 	 * @param int    $default
@@ -129,7 +129,7 @@ class Config {
 	private function getInRange(string $key, int $default, int $min, int $max): int {
 		$value = $this->get($key);
 
-		if ($value === null || $value === '') {
+		if (!is_numeric($value)) {
 			return $default;
 		}
 
@@ -137,13 +137,15 @@ class Config {
 	}
 
 	/**
-	 * Raw value of one shipping_frenet_* setting.
+	 * Value of one shipping_frenet_* setting as text, empty when it is missing or not a single value.
 	 *
 	 * @param string $key
 	 *
-	 * @return mixed
+	 * @return string
 	 */
-	private function get(string $key): mixed {
-		return $this->config->get(self::PREFIX . $key);
+	private function get(string $key): string {
+		$value = $this->config->get(self::PREFIX . $key);
+
+		return is_scalar($value) ? (string)$value : '';
 	}
 }
