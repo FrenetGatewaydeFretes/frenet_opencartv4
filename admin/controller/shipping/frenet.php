@@ -1,6 +1,7 @@
 <?php
 namespace Opencart\Admin\Controller\Extension\Opencartfrenetv4\Shipping;
 
+use Frenet\Module;
 
 class Frenet extends \Opencart\System\Engine\Controller {
 	/**
@@ -15,6 +16,8 @@ class Frenet extends \Opencart\System\Engine\Controller {
 	private $error = array();
 
 	public function index() {
+		$this->autoloader->register('Frenet', DIR_EXTENSION . 'opencartfrenetv4/system/library/frenet/');
+
 		$data = $this->load->language('extension/opencartfrenetv4/shipping/frenet');
 
 		$this->document->setTitle($this->language->get('heading_title'));
@@ -95,6 +98,8 @@ class Frenet extends \Opencart\System\Engine\Controller {
 		} else {
 			$data['shipping_frenet_sort_order'] = $this->config->get('shipping_frenet_sort_order');
 		}
+
+		$data['text_version'] = sprintf($this->language->get('text_version'), Module::VERSION);
 
 		$data['header'] = $this->load->controller('common/header');
 		$data['column_left'] = $this->load->controller('common/column_left');
