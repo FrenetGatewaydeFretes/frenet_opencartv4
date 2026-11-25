@@ -62,7 +62,7 @@ class Log {
 	private function write(string $level, string $message, array $context): void {
 		$line = $level . ' ' . $message;
 
-		if ($context) {
+		if ($context !== []) {
 			$line .= ' ' . json_encode($this->mask($context), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR);
 		}
 

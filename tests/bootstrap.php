@@ -36,7 +36,15 @@ register_shutdown_function(static function() use ($mock_server): void {
 
 $deadline = microtime(true) + 5;
 
-while (!@fsockopen($mock_host, $mock_port)) {
+while (true) {
+	$socket = @fsockopen($mock_host, $mock_port);
+
+	if (is_resource($socket)) {
+		fclose($socket);
+
+		break;
+	}
+
 	if (microtime(true) > $deadline) {
 		throw new RuntimeException('The Frenet mock did not answer on port ' . $mock_port);
 	}

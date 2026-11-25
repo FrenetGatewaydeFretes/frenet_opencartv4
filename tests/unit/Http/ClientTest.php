@@ -12,11 +12,12 @@ final class ClientTest extends TestCase {
 	public function testSendsTheBodyAndHeaders(): void {
 		$response = (new Client())->post($this->url('/mock/echo'), '{"a":1}', ['Content-Type' => 'application/json', 'token' => 'abc'], 5);
 
-		$echo = json_decode($response->getBody(), true);
+		$echo = $this->decode($response);
 
 		self::assertSame(200, $response->getStatusCode());
 		self::assertSame('POST', $echo['method']);
 		self::assertSame('{"a":1}', $echo['body']);
+		self::assertIsArray($echo['headers']);
 		self::assertSame('application/json', $echo['headers']['content-type']);
 		self::assertSame('abc', $echo['headers']['token']);
 	}
@@ -81,15 +82,20 @@ final class ClientTest extends TestCase {
 	public function testKeepsTheBodyOfEachParallelRequest(): void {
 		$answers = (new Client())->postAll($this->url('/mock/echo'), ['a' => 'first', 'b' => 'second'], ['token' => 'abc'], 5);
 
-		self::assertSame('first', json_decode($answers['a']->getBody(), true)['body']);
-		self::assertSame('second', json_decode($answers['b']->getBody(), true)['body']);
-		self::assertSame('abc', json_decode($answers['b']->getBody(), true)['headers']['token']);
+		$first = $this->decode($answers['a']);
+		$second = $this->decode($answers['b']);
+
+		self::assertSame('first', $first['body']);
+		self::assertSame('second', $second['body']);
+		self::assertIsArray($second['headers']);
+		self::assertSame('abc', $second['headers']['token']);
 	}
 
 	public function testReturnsEachParallelTimeoutAsAnException(): void {
 		$answers = (new Client())->postAll($this->url('/mock/delay/3'), ['x' => '', 'y' => ''], [], 1);
 
 		self::assertInstanceOf(Exception::class, $answers['x']);
+		self::assertInstanceOf(Exception::class, $answers['y']);
 		self::assertSame(CURLE_OPERATION_TIMEDOUT, $answers['x']->getCode());
 		self::assertSame(CURLE_OPERATION_TIMEDOUT, $answers['y']->getCode());
 	}
@@ -103,13 +109,33 @@ final class ClientTest extends TestCase {
 	public function testMockQuoteAnswersWithServicesWhenTheTokenIsSent(): void {
 		$response = (new Client())->post($this->url('/shipping/quote'), '{}', ['Content-Type' => 'application/json', 'token' => 'abc'], 5);
 
-		$quote = json_decode($response->getBody(), true);
+		$quote = $this->decode($response);
 
 		self::assertTrue($response->isSuccessful());
+		self::assertIsArray($quote['ShippingSevicesArray']);
 		self::assertSame(['03298', '03220'], array_column($quote['ShippingSevicesArray'], 'ServiceCode'));
 	}
 
 	/**
+	 * Decoded JSON body of an answer that must be an HTTP response.
+	 *
+	 * @param Exception|Response $answer
+	 *
+	 * @return array<mixed>
+	 */
+	private function decode(Exception|Response $answer): array {
+		self::assertInstanceOf(Response::class, $answer);
+
+		$body = json_decode($answer->getBody(), true);
+
+		self::assertIsArray($body);
+
+		return $body;
+	}
+
+	/**
+	 * URL of a path on the Frenet mock.
+	 *
 	 * @param string $path
 	 *
 	 * @return string

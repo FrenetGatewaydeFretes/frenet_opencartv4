@@ -78,9 +78,9 @@ class Client {
 			if ($code === null) {
 				$answers[$key] = new Exception('The transfer stopped before an answer came back');
 			} elseif ($code !== CURLE_OK) {
-				$answers[$key] = new Exception(curl_error($handle) ?: (string)curl_strerror($code), $code);
+				$answers[$key] = new Exception($this->getError($handle, $code), $code);
 			} else {
-				$answers[$key] = new Response((int)curl_getinfo($handle, CURLINFO_RESPONSE_CODE), (string)curl_multi_getcontent($handle));
+				$answers[$key] = new Response(curl_getinfo($handle, CURLINFO_RESPONSE_CODE), (string)curl_multi_getcontent($handle));
 			}
 
 			curl_multi_remove_handle($multi, $handle);
@@ -107,6 +107,7 @@ class Client {
 	 */
 	private function run(CurlMultiHandle $multi, array $handles): array {
 		$results = [];
+		$running = 0;
 
 		do {
 			do {
@@ -121,12 +122,26 @@ class Client {
 				}
 			}
 
-			if ($running && curl_multi_select($multi, self::SELECT_TIMEOUT) === -1) {
+			if ($running > 0 && curl_multi_select($multi, self::SELECT_TIMEOUT) === -1) {
 				usleep(self::SELECT_FAILED_PAUSE);
 			}
-		} while ($running && $status === CURLM_OK);
+		} while ($running > 0 && $status === CURLM_OK);
 
 		return $results;
+	}
+
+	/**
+	 * Message of a failed transfer: the detail cURL kept for the handle, or the generic text of the error code.
+	 *
+	 * @param CurlHandle $handle
+	 * @param int        $code
+	 *
+	 * @return string
+	 */
+	private function getError(CurlHandle $handle, int $code): string {
+		$error = curl_error($handle);
+
+		return $error !== '' ? $error : (string)curl_strerror($code);
 	}
 
 	/**

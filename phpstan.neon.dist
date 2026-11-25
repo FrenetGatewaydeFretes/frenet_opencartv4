@@ -1,5 +1,8 @@
+includes:
+    - vendor/phpstan/phpstan-strict-rules/rules.neon
+
 parameters:
-    level: 6
+    level: 10
     phpVersion: 80000
     paths:
         - system/library/frenet
