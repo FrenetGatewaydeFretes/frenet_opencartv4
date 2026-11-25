@@ -78,7 +78,7 @@ class Client {
 			if ($code === null) {
 				$answers[$key] = new Exception('The transfer stopped before an answer came back');
 			} elseif ($code !== CURLE_OK) {
-				$answers[$key] = new Exception(curl_error($handle) ?: curl_strerror($code), $code);
+				$answers[$key] = new Exception(curl_error($handle) ?: (string)curl_strerror($code), $code);
 			} else {
 				$answers[$key] = new Response((int)curl_getinfo($handle, CURLINFO_RESPONSE_CODE), (string)curl_multi_getcontent($handle));
 			}
@@ -116,8 +116,8 @@ class Client {
 			while ($info = curl_multi_info_read($multi)) {
 				$key = array_search($info['handle'], $handles, true);
 
-				if ($key !== false) {
-					$results[$key] = (int)$info['result'];
+				if ($key !== false && is_int($info['result'])) {
+					$results[$key] = $info['result'];
 				}
 			}
 
