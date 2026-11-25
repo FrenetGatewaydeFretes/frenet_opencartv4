@@ -54,7 +54,7 @@ O código precisa rodar no PHP 8.0 e não pode gerar aviso no PHP 8.5.
 - Sem `curl_close()`, obsoleta no PHP 8.5.
 - Declare toda propriedade das classes que estendem `Controller` e `Model` do core: o `__set` do core só aceita objetos.
 
-O `composer compat` (PHPCompatibility com `testVersion 8.0-`) e o `php -l` do CI, do PHP 8.0 ao 8.5, barram a maior parte disso.
+O `composer compat` (PHPCompatibility com `testVersion 8.0-`) e o `php -l` do CI, do PHP 8.0 ao 8.5, barram a maior parte disso. Os testes unitários rodam do PHP 8.2 ao 8.5 e falham com qualquer aviso de obsoleto, notice ou saída na tela.
 
 ### Regras de Twig
 
@@ -108,6 +108,8 @@ As classes de teste são `final`, e por isso o fixer exige `self::` nas asserç�
 
 Para o PHPStan e os testes, `tests/stubs/opencart.php` imita o `Config` e o `Log` do core do OpenCart 4.
 
+O PHPStan roda no nível 10, o mais alto, com o `phpstan-strict-rules` e, nos testes, com o `phpstan-phpunit`. Valor `mixed` (como o que vem do `Config` do core) é conferido com `is_scalar()`, `is_numeric()` e afins antes de qualquer cast, e condições usam comparações explícitas (`!== []`, `> 0`) em vez de valores verdadeiros ou falsos.
+
 ## Comandos
 
 As ferramentas rodam com o Composer (dependências só de desenvolvimento, fora do pacote). Sem PHP na máquina, use o Docker:
@@ -122,8 +124,8 @@ docker run --rm -u "$(id -u):$(id -g)" -e COMPOSER_HOME=/tmp/composer -v "$PWD":
 | `composer check` | roda `cs`, `compat`, `phpstan` e `test`, como o CI |
 | `composer cs` / `composer cs-fix` | confere / aplica o padrão de código |
 | `composer compat` | PHPCompatibility do PHP 8.0 em diante em `system/library/frenet` |
-| `composer phpstan` | PHPStan nível 6: a biblioteca analisada como PHP 8.0 (`phpstan.neon.dist`) e os testes como PHP 8.2, o mínimo do PHPUnit 11 (`phpstan.tests.neon.dist`) |
-| `composer test` | PHPUnit; sobe o mock da Frenet sozinho na porta 8765 |
+| `composer phpstan` | PHPStan nível 10 com as regras estritas: a biblioteca analisada como PHP 8.0 (`phpstan.neon.dist`) e os testes como PHP 8.2, o mínimo do PHPUnit 11 (`phpstan.tests.neon.dist`) |
+| `composer test` | PHPUnit; sobe o mock da Frenet sozinho na porta 8765 e falha com avisos de obsoleto, notices e saída na tela |
 | `composer lint` | `php -l` em `admin/`, `catalog/` e `system/` com o PHP atual |
 
 Para conferir a sintaxe numa versão específica do PHP:
@@ -148,6 +150,7 @@ docker run --rm -v "$PWD":/app -w /app php:8.0-cli sh -c 'find admin catalog sys
 | `POST /shipping/quote` com `token: status-503` (ou outro código) | responde com esse status HTTP |
 | `/mock/status/{código}` | responde com esse status HTTP |
 | `/mock/delay/{segundos}` | espera antes de responder, para testar tempo limite |
+| `/mock/redirect` | 302 para `/mock/echo`, para conferir que o cliente não segue redirecionamento |
 | `/mock/echo` | devolve método, headers e corpo recebidos |
 
 Para usar fora dos testes:
@@ -184,7 +187,7 @@ O CI roda o E2E em 7 versões, cada uma no menor e no maior PHP que ela aceita:
 | 4.1.0.3 | 8.0 e 8.5 |
 | 4.1.0.4 | 8.1 e 8.5 |
 
-Capturas, vídeo e logs da loja ficam nos artefatos `e2e-<versão>-php<versão>` da execução.
+As capturas do instalador e da configuração e os logs da loja ficam nos artefatos `e2e-<versão>-php<versão>` da execução; vídeo e trace só quando o teste falha. O teste espera pela tela com localizadores e asserções do Playwright (`expect(...).toBeVisible()`), sem `networkidle` nem esperas fixas.
 
 Para rodar na máquina, com o Docker:
 
