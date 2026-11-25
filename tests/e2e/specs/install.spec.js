@@ -16,20 +16,21 @@ const watch = (page) => {
 };
 
 const login = async (page) => {
-	await page.goto('admin/', { waitUntil: 'networkidle' });
-	await page.fill('input[name=username]', 'admin');
-	await page.fill('input[name=password]', 'admin');
-	await Promise.all([page.waitForURL(/user_token=/), page.click('button[type=submit]')]);
+	await page.goto('admin/');
+	await page.locator('input[name=username]').fill('admin');
+	await page.locator('input[name=password]').fill('admin');
+	await page.locator('button[type=submit]').click();
+	await expect(page).toHaveURL(/user_token=/);
 
 	return new URL(page.url()).searchParams.get('user_token');
 };
 
 const upload = async (page, token) => {
-	await page.goto(`admin/index.php?route=marketplace/installer&user_token=${token}`, { waitUntil: 'networkidle' });
+	await page.goto(`admin/index.php?route=marketplace/installer&user_token=${token}`);
 
 	const chooser = page.waitForEvent('filechooser');
 
-	await page.click('#button-upload');
+	await page.locator('#button-upload').click();
 	await (await chooser).setFiles(PACKAGE);
 	await expect(page.locator('#extension tr', { hasText: PACKAGE_NAME })).toBeVisible({ timeout: 120000 });
 	await expect(page.locator('#alert .alert-danger')).toHaveCount(0);
@@ -45,16 +46,18 @@ const installPackage = async (page) => {
 };
 
 const shippingRow = async (page, token) => {
-	await page.goto(`admin/index.php?route=marketplace/extension&type=shipping&user_token=${token}`, { waitUntil: 'networkidle' });
-	await page.waitForSelector('#extension table');
+	await page.goto(`admin/index.php?route=marketplace/extension&type=shipping&user_token=${token}`);
 
-	return page.locator('#extension tr', { hasText: 'Frenet' });
+	const row = page.locator('#extension tr', { hasText: 'Frenet' });
+
+	await expect(row).toHaveCount(1);
+
+	return row;
 };
 
 const installShipping = async (page, token) => {
 	const row = await shippingRow(page, token);
 
-	await expect(row).toHaveCount(1);
 	await row.locator('a.btn-success').click();
 	await expect(page.locator('#extension tr', { hasText: 'Frenet' }).locator('a.btn-primary')).toBeVisible();
 	await expect(page.locator('#alert .alert-danger')).toHaveCount(0);
@@ -63,8 +66,8 @@ const installShipping = async (page, token) => {
 const openSettings = async (page, token) => {
 	const row = await shippingRow(page, token);
 
-	await Promise.all([page.waitForURL(/route=extension\/opencartfrenetv4\/shipping\/frenet/), row.locator('a.btn-primary').click()]);
-	await page.waitForLoadState('networkidle');
+	await row.locator('a.btn-primary').click();
+	await expect(page).toHaveURL(/route=extension\/opencartfrenetv4\/shipping\/frenet/);
 	await expect(page.locator('h1')).toHaveText('Frenet');
 	await expect(page.locator('#input-postcode')).toBeVisible();
 };
