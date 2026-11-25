@@ -1,0 +1,53 @@
+<?php
+require dirname(__DIR__) . '/vendor/autoload.php';
+require __DIR__ . '/stubs/opencart.php';
+
+spl_autoload_register(static function(string $class): void {
+	if (!str_starts_with($class, 'Frenet\\') || str_starts_with($class, 'Frenet\Tests\\')) {
+		return;
+	}
+
+	$file = dirname(__DIR__) . '/system/library/frenet/' . str_replace('\\', '/', strtolower((string)preg_replace('~([a-z])([A-Z]|[0-9])~', '\1_\2', substr($class, strlen('Frenet\\'))))) . '.php';
+
+	if (is_file($file)) {
+		require $file;
+	}
+});
+
+$mock_host = (string)parse_url((string)getenv('FRENET_MOCK_URL'), PHP_URL_HOST);
+$mock_port = (int)parse_url((string)getenv('FRENET_MOCK_URL'), PHP_URL_PORT);
+
+$mock_server = proc_open(
+	[PHP_BINARY, '-S', $mock_host . ':' . $mock_port, __DIR__ . '/mock/router.php'],
+	[['file', '/dev/null', 'r'], ['file', '/dev/null', 'w'], ['file', '/dev/null', 'w']],
+	$pipes,
+	null,
+	getenv() + ['PHP_CLI_SERVER_WORKERS' => '4']
+);
+
+if (!is_resource($mock_server)) {
+	throw new RuntimeException('Could not start the Frenet mock on port ' . $mock_port);
+}
+
+register_shutdown_function(static function() use ($mock_server): void {
+	proc_terminate($mock_server);
+	proc_close($mock_server);
+});
+
+$deadline = microtime(true) + 5;
+
+while (true) {
+	$socket = @fsockopen($mock_host, $mock_port);
+
+	if (is_resource($socket)) {
+		fclose($socket);
+
+		break;
+	}
+
+	if (microtime(true) > $deadline) {
+		throw new RuntimeException('The Frenet mock did not answer on port ' . $mock_port);
+	}
+
+	usleep(50000);
+}
