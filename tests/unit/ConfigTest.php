@@ -46,6 +46,11 @@ final class ConfigTest extends TestCase {
 		self::assertSame('01310100', $config->getOriginPostcode());
 	}
 
+	public function testFallsBackToTheTokenOfVersionOneUntilTheSettingsAreSaved(): void {
+		self::assertSame('legacy', $this->createConfig(['shipping_frenet_contrato_token' => ' legacy '])->getToken());
+		self::assertSame('new', $this->createConfig(['shipping_frenet_token' => 'new', 'shipping_frenet_contrato_token' => 'legacy'])->getToken());
+	}
+
 	public function testReadsTheTimeoutTheAttemptsAndTheDebugSwitch(): void {
 		$config = $this->createConfig(['shipping_frenet_timeout' => '8', 'shipping_frenet_attempts' => '2', 'shipping_frenet_debug' => '1']);
 

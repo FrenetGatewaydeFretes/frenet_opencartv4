@@ -13,6 +13,11 @@ class Config {
 	private const PREFIX = 'shipping_frenet_';
 
 	/**
+	 * @var string
+	 */
+	public const LEGACY_TOKEN = 'contrato_token';
+
+	/**
 	 * @var int
 	 */
 	public const TIMEOUT_MIN = 2;
@@ -54,12 +59,14 @@ class Config {
 	}
 
 	/**
-	 * Token generated in the Frenet panel that authenticates every API call.
+	 * Token generated in the Frenet panel that authenticates every API call, or the one version 1.0.0 saved until the settings are opened.
 	 *
 	 * @return string
 	 */
 	public function getToken(): string {
-		return trim($this->get('token'));
+		$token = trim($this->get('token'));
+
+		return $token !== '' ? $token : trim($this->get(self::LEGACY_TOKEN));
 	}
 
 	/**
