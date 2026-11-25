@@ -139,7 +139,7 @@ class Client {
 	 * @return array<int, mixed>
 	 */
 	private function getOptions(string $body, array $headers, int $timeout): array {
-		$options = [
+		return [
 			CURLOPT_POST           => true,
 			CURLOPT_POSTFIELDS     => $body,
 			CURLOPT_HTTPHEADER     => $this->formatHeaders($headers),
@@ -149,12 +149,9 @@ class Client {
 			CURLOPT_FOLLOWLOCATION => false,
 			CURLOPT_PROTOCOLS      => CURLPROTO_HTTP | CURLPROTO_HTTPS,
 			CURLOPT_SSL_VERIFYPEER => true,
-			CURLOPT_SSL_VERIFYHOST => 2
+			CURLOPT_SSL_VERIFYHOST => 2,
+			CURLOPT_PIPEWAIT       => true
 		];
-
-		$options[CURLOPT_PIPEWAIT] = true;
-
-		return $options;
 	}
 
 	/**
