@@ -200,7 +200,7 @@ O `run.sh` usa o Playwright de `tests/e2e/node_modules` quando há Node na máqu
 
 ## Actions do CI
 
-As actions dos workflows são fixadas pelo hash completo do commit, com a versão em comentário (`actions/checkout@<hash> # v7.0.1`), como recomenda o [guia de segurança do GitHub Actions](https://docs.github.com/en/actions/reference/security/secure-use): uma tag pode ser movida para outro commit, o hash não. O Dependabot (`.github/dependabot.yml`) abre toda semana um PR para a `3.0-develop` com as versões novas, atualizando hash e comentário juntos. Ao adicionar uma action, use o mesmo formato.
+As actions dos workflows são fixadas pelo hash completo do commit, com a versão em comentário (`actions/checkout@<hash> # v7.0.1`), como recomenda o [guia de segurança do GitHub Actions](https://docs.github.com/en/actions/reference/security/secure-use): uma tag pode ser movida para outro commit, o hash não. O Dependabot (`.github/dependabot.yml`) procura versões novas uma vez por semana e, só quando há alguma, abre um PR para a `3.0-develop` com todas juntas, atualizando hash e comentário. Ao adicionar uma action, use o mesmo formato.
 
 ## Branches e commits
 
