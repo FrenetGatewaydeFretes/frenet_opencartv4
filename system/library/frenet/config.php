@@ -47,6 +47,26 @@ class Config {
 	 */
 	public const ATTEMPTS_DEFAULT = 3;
 
+	/**
+	 * @var float
+	 */
+	public const DEFAULT_HEIGHT = 2.0;
+
+	/**
+	 * @var float
+	 */
+	public const DEFAULT_WIDTH = 11.0;
+
+	/**
+	 * @var float
+	 */
+	public const DEFAULT_LENGTH = 16.0;
+
+	/**
+	 * @var float
+	 */
+	public const DEFAULT_WEIGHT = 1.0;
+
 	public function __construct(private CoreConfig $config) {}
 
 	/**
@@ -88,6 +108,60 @@ class Config {
 	}
 
 	/**
+	 * Weight class the store owner mapped to kilograms, the unit the Frenet API expects, or 0 when none was chosen.
+	 *
+	 * @return int
+	 */
+	public function getWeightClassId(): int {
+		return (int)$this->get('weight_class_id');
+	}
+
+	/**
+	 * Length class the store owner mapped to centimetres, the unit the Frenet API expects, or 0 when none was chosen.
+	 *
+	 * @return int
+	 */
+	public function getLengthClassId(): int {
+		return (int)$this->get('length_class_id');
+	}
+
+	/**
+	 * Smallest height in centimetres sent for a product, also used when the product has none.
+	 *
+	 * @return float
+	 */
+	public function getMinimumHeight(): float {
+		return $this->getPositive('minimum_height', self::DEFAULT_HEIGHT);
+	}
+
+	/**
+	 * Smallest width in centimetres sent for a product, also used when the product has none.
+	 *
+	 * @return float
+	 */
+	public function getMinimumWidth(): float {
+		return $this->getPositive('minimum_width', self::DEFAULT_WIDTH);
+	}
+
+	/**
+	 * Smallest length in centimetres sent for a product, also used when the product has none.
+	 *
+	 * @return float
+	 */
+	public function getMinimumLength(): float {
+		return $this->getPositive('minimum_length', self::DEFAULT_LENGTH);
+	}
+
+	/**
+	 * Weight in kilograms sent for a product registered without one.
+	 *
+	 * @return float
+	 */
+	public function getDefaultWeight(): float {
+		return $this->getPositive('default_weight', self::DEFAULT_WEIGHT);
+	}
+
+	/**
 	 * Seconds each quote attempt may take, kept within the supported range.
 	 *
 	 * @return int
@@ -121,6 +195,31 @@ class Config {
 	 */
 	public function getSortOrder(): int {
 		return (int)$this->get('sort_order');
+	}
+
+	/**
+	 * Number typed in the admin, with comma or dot decimals, or null when it is not greater than zero.
+	 *
+	 * @param mixed $value
+	 *
+	 * @return float|null
+	 */
+	public static function parsePositive(mixed $value): ?float {
+		$number = is_scalar($value) ? str_replace(',', '.', trim((string)$value)) : '';
+
+		return is_numeric($number) && (float)$number > 0 ? (float)$number : null;
+	}
+
+	/**
+	 * Decimal setting greater than zero, or the default when the saved value is missing, zero or not a number.
+	 *
+	 * @param string $key
+	 * @param float  $default
+	 *
+	 * @return float
+	 */
+	private function getPositive(string $key, float $default): float {
+		return self::parsePositive($this->get($key)) ?? $default;
 	}
 
 	/**
