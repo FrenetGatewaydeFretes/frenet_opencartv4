@@ -206,7 +206,7 @@ else
 	! grep -q 'Quote attempt [0-9]/3 failed: HTTP 401' <<< "$frenet_log" || fail "the quote refused with HTTP 401 was retried"
 	grep -q 'Quote returned no service: Nenhuma transportadora disponível' <<< "$frenet_log" || fail "frenet.log does not have the message of the quote without services"
 	grep -q 'Services with an error were left out.*Erro: Peso excedido.' <<< "$frenet_log" || fail "frenet.log does not have the Msg of the service with an error"
-	grep -qF 'Quote failed: Class "Frenet\Quote\Parser" not found' <<< "$frenet_log" || fail "frenet.log does not have the unexpected error of the quote"
+	grep -qE 'Quote failed: Class "Frenet\\Quote\\Parser" not found \{"exception":"Error","at":"[^"]+/system/library/frenet/api\.php:[0-9]+","request":' <<< "$frenet_log" || fail "frenet.log does not have the unexpected error of the quote with its class, place and request"
 fi
 
 echo "Checking the order, the settings, the mock, the library and the logs"
