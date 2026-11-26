@@ -113,12 +113,21 @@ const startCheckout = async (page) => {
 };
 
 const showShippingMethods = async (page) => {
+	const modal = (await page.locator('#button-shipping-methods').count()) > 0;
+	const quoted = page.waitForResponse(route('checkout/shipping_method', modal ? 'quote' : 'getMethods'));
+	const started = Date.now();
+
 	await page.locator('#input-shipping-address').selectOption({ index: 1 });
 
-	if (await page.locator('#button-shipping-methods').count()) {
-		await page.locator('#button-shipping-methods').click();
+	if (modal) await page.locator('#button-shipping-methods').click();
 
+	await quoted;
+
+	const milliseconds = Date.now() - started;
+
+	if (modal) {
 		return {
+			milliseconds,
 			frenet: page.locator('#modal-shipping label[for^="input-shipping-method-frenet-"]'),
 			error: page.locator('#modal-shipping .alert-danger'),
 			others: page.locator('#modal-shipping input[name=shipping_method]:not([value^="frenet."])')
@@ -126,6 +135,7 @@ const showShippingMethods = async (page) => {
 	}
 
 	return {
+		milliseconds,
 		frenet: page.locator('#input-shipping-method option[value^="frenet."]'),
 		error: page.locator('#input-shipping-method optgroup[label="Frenet"] option[disabled]'),
 		others: page.locator('#input-shipping-method option[value*="."]:not([value^="frenet."])')
@@ -269,7 +279,6 @@ test('@block shows in the Frenet block of the checkout what the Frenet API answe
 	await login(page);
 	await startCheckout(page);
 
-	const started = Date.now();
 	const block = await showShippingMethods(page);
 
 	if (expected.error) {
@@ -284,7 +293,7 @@ test('@block shows in the Frenet block of the checkout what the Frenet API answe
 		}
 	}
 
-	if (expected.limit) expect(Date.now() - started).toBeLessThan(expected.limit);
+	if (expected.limit) expect(block.milliseconds).toBeLessThan(expected.limit);
 
 	await expect(block.others.first()).toBeAttached();
 	await page.screenshot({ path: testInfo.outputPath(`checkout-${scenario}.png`), fullPage: true });
@@ -293,7 +302,7 @@ test('@block shows in the Frenet block of the checkout what the Frenet API answe
 		frenet: await block.frenet.allInnerTexts(),
 		error: await block.error.allInnerTexts(),
 		others: await block.others.count(),
-		milliseconds: Date.now() - started
+		milliseconds: block.milliseconds
 	}, null, 2));
 
 	expect(errors).toEqual([]);
