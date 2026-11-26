@@ -2,29 +2,30 @@
 namespace Frenet\Quote;
 
 /**
- * Reads the services of a Frenet API quote, whether the answer lists several services or brings a single one.
+ * Reads a Frenet API quote, whether the answer lists several services or brings a single one, keeping apart the services with an error.
  */
 class Parser {
 	/**
-	 * Services that can be offered: entries without an error, a code and a price are left out.
+	 * Services that can be offered, the services left out with an error and the general message of the answer.
 	 *
 	 * @param string $body
 	 *
 	 * @throws Exception
 	 *
-	 * @return array<int, Service>
+	 * @return Result
 	 */
-	public function parse(string $body): array {
+	public function parse(string $body): Result {
 		$data = json_decode($body, true);
 
 		if (!is_array($data)) {
 			throw new Exception('The Frenet API answered with invalid JSON');
 		}
 
+		$message = $this->getText($data['Message'] ?? null);
 		$entries = $data['ShippingSevicesArray'] ?? [];
 
 		if (!is_array($entries)) {
-			return [];
+			return new Result([], [], $message);
 		}
 
 		if (isset($entries['ServiceCode'])) {
@@ -32,9 +33,21 @@ class Parser {
 		}
 
 		$services = [];
+		$errors = [];
 
 		foreach ($entries as $entry) {
-			if (!is_array($entry) || filter_var($entry['Error'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+			if (!is_array($entry)) {
+				continue;
+			}
+
+			if (filter_var($entry['Error'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+				$errors[] = [
+					'code'        => $this->getText($entry['ServiceCode'] ?? null),
+					'description' => $this->getText($entry['ServiceDescription'] ?? null),
+					'carrier'     => $this->getText($entry['Carrier'] ?? null),
+					'message'     => $this->getText($entry['Msg'] ?? null)
+				];
+
 				continue;
 			}
 
@@ -48,7 +61,7 @@ class Parser {
 			$services[] = new Service($code, $this->getText($entry['ServiceDescription'] ?? null), (float)str_replace(',', '.', $price), (int)$this->getText($entry['DeliveryTime'] ?? null));
 		}
 
-		return $services;
+		return new Result($services, $errors, $message);
 	}
 
 	/**
