@@ -8,6 +8,7 @@ use Frenet\Log as FrenetLog;
 use Frenet\Quote\Item;
 use Frenet\Quote\Request;
 use Frenet\Quote\Service;
+use Frenet\Quote\UnavailableException;
 use Opencart\System\Engine\Model;
 use Opencart\System\Library\Log as CoreLog;
 use Throwable;
@@ -43,7 +44,10 @@ class Frenet extends Model {
 			$request = $this->createRequest($config, $address);
 			$result = (new Api(new Client(), $log, $config->getToken(), VERSION, $config->getTimeout(), $config->getAttempts()))->quote($request);
 		} catch (Throwable $exception) {
-			$log->error('Quote failed: ' . $exception->getMessage(), $request !== null ? ['request' => $request->toArray()] : ['postcode' => $address['postcode'] ?? '']);
+			$context = $exception instanceof UnavailableException ? [] : ['exception' => $exception::class, 'at' => $exception->getFile() . ':' . $exception->getLine()];
+			$context += $request !== null ? ['request' => $request->toArray()] : ['postcode' => $address['postcode'] ?? ''];
+
+			$log->error('Quote failed: ' . $exception->getMessage(), $context);
 
 			return $this->getMethod($config, [], $this->language->get('error_unavailable'));
 		}
