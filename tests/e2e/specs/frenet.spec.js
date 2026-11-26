@@ -1,3 +1,4 @@
+const fs = require('fs');
 const path = require('path');
 const { test, expect } = require('@playwright/test');
 
@@ -6,6 +7,15 @@ const PREVIOUS_PACKAGE = process.env.FRENET_PREVIOUS_PACKAGE ? path.resolve(proc
 const PACKAGE_NAME = 'Frenet';
 const CUSTOMER = { email: 'e2e@example.com', password: 'e2e-password' };
 const PRODUCT_ID = 40;
+const UNAVAILABLE = 'Frenet shipping is unavailable right now. Choose another delivery option or try again in a moment.';
+const NO_SERVICES = 'No Frenet delivery option serves this address.';
+const SCENARIOS = {
+	slow: { error: UNAVAILABLE, limit: 8000 },
+	'status-503': { error: UNAVAILABLE },
+	'status-401': { error: UNAVAILABLE },
+	empty: { error: NO_SERVICES },
+	'with-errors': { names: [/^SEDEX - 3 dia\(s\) - /, /^Jadlog Package - /] }
+};
 const route = (path, method) => new RegExp(`route=${path}(\\||%7C|\\.)${method}`, 'i');
 
 const watch = (page) => {
@@ -80,10 +90,13 @@ const checkSettings = async (page, token, saved_token, testInfo) => {
 	await openSettings(page, token);
 	await expect(page.locator('#input-token')).toHaveValue(saved_token);
 	await expect(page.locator('#frenet-version')).toHaveText(/3\.0\.0/);
+	await expect(page.locator('#input-timeout')).toHaveValue('5');
+	await expect(page.locator('#input-attempts')).toHaveValue('3');
+	await expect(page.locator('#input-debug')).toHaveValue('0');
 	await page.screenshot({ path: testInfo.outputPath('settings.png'), fullPage: true });
 };
 
-const checkout = async (page, services, testInfo) => {
+const startCheckout = async (page) => {
 	await page.goto('index.php?route=account/login');
 	await page.locator('#input-email').fill(CUSTOMER.email);
 	await page.locator('#input-password').fill(CUSTOMER.password);
@@ -95,11 +108,32 @@ const checkout = async (page, services, testInfo) => {
 	expect(added.ok()).toBeTruthy();
 
 	await page.goto('index.php?route=checkout/checkout');
+	await expect(page.locator('#input-shipping-address option')).toHaveCount(2);
+};
 
-	const address = page.locator('#input-shipping-address');
+const showShippingMethods = async (page) => {
+	await page.locator('#input-shipping-address').selectOption({ index: 1 });
 
-	await expect(address.locator('option')).toHaveCount(2);
-	await address.selectOption({ index: 1 });
+	if (await page.locator('#button-shipping-methods').count()) {
+		await page.locator('#button-shipping-methods').click();
+
+		return {
+			frenet: page.locator('#modal-shipping label[for^="input-shipping-method-frenet-"]'),
+			error: page.locator('#modal-shipping .alert-danger'),
+			others: page.locator('#modal-shipping input[name=shipping_method]:not([value^="frenet."])')
+		};
+	}
+
+	return {
+		frenet: page.locator('#input-shipping-method option[value^="frenet."]'),
+		error: page.locator('#input-shipping-method optgroup[label="Frenet"] option[disabled]'),
+		others: page.locator('#input-shipping-method option[value*="."]:not([value^="frenet."])')
+	};
+};
+
+const checkout = async (page, services, testInfo) => {
+	await startCheckout(page);
+	await page.locator('#input-shipping-address').selectOption({ index: 1 });
 
 	const modal = (await page.locator('#button-shipping-methods').count()) > 0;
 	const name = modal ? await chooseInModal(page, services, testInfo) : await chooseInSelect(page, services, testInfo);
@@ -219,6 +253,46 @@ test('@upgrade quotes with the token of version 1.0.0 before the settings are op
 
 	await test.step('The settings show the token moved to the new key and the module version', () => checkSettings(page, token, 'e2e-token', testInfo));
 	await test.step('The order keeps the Frenet shipping', () => checkOrder(page, token, name, testInfo));
+
+	expect(errors).toEqual([]);
+});
+
+test('@block shows in the Frenet block of the checkout what the Frenet API answered for the scenario of the run', async ({ page }, testInfo) => {
+	const scenario = process.env.E2E_SCENARIO || '';
+	const expected = SCENARIOS[scenario];
+
+	test.skip(!expected, 'no scenario');
+
+	const errors = watch(page);
+
+	await login(page);
+	await startCheckout(page);
+
+	const started = Date.now();
+	const block = await showShippingMethods(page);
+
+	if (expected.error) {
+		await expect(block.error).toHaveText(expected.error, { timeout: 60000 });
+		await expect(block.frenet).toHaveCount(0);
+	} else {
+		await expect(block.frenet).toHaveCount(expected.names.length, { timeout: 60000 });
+
+		for (const [index, name] of expected.names.entries()) {
+			await expect(block.frenet.nth(index)).toHaveText(name);
+		}
+	}
+
+	if (expected.limit) expect(Date.now() - started).toBeLessThan(expected.limit);
+
+	await expect(block.others.first()).toBeAttached();
+	await page.screenshot({ path: testInfo.outputPath(`checkout-${scenario}.png`), fullPage: true });
+	await fs.promises.writeFile(testInfo.outputPath(`checkout-${scenario}.json`), JSON.stringify({
+		scenario,
+		frenet: await block.frenet.allInnerTexts(),
+		error: await block.error.allInnerTexts(),
+		others: await block.others.count(),
+		milliseconds: Date.now() - started
+	}, null, 2));
 
 	expect(errors).toEqual([]);
 });
