@@ -27,7 +27,7 @@ $_['entry_frenet_key_token']   	= 'Token';
 $_['help_frenet_token']       = 'Token de acesso à API REST da Frenet.';
 $_['help_msg_prazo']          = '%s - Em média %d dia(s)';
 $_['help_timeout']            = 'How long each quote attempt waits for Frenet to answer, from 2 to 10 seconds.';
-$_['help_attempts']           = 'How many times the quote is sent when Frenet does not answer or answers with a server error, from 1 to 3. An invalid token and other 4xx errors are never retried.';
+$_['help_attempts']           = 'How many times the quote is sent when Frenet does not answer or answers with a server error, from 1 to 3. An invalid token and the other refusals of Frenet (4xx errors other than 408 and 429) are never retried.';
 $_['help_debug']              = 'Writes every quote request and response to frenet.log, without the token. Errors are always written.';
 
 // Error

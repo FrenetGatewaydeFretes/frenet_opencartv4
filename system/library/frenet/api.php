@@ -27,7 +27,7 @@ class Api {
 	public function __construct(private Client $client, private Log $log, private string $token, private string $opencart_version, private int $timeout, private int $attempts, private string $quote_url = self::QUOTE_URL) {}
 
 	/**
-	 * Services the Frenet API offers for the request, retrying a timeout, a connection failure, a 5xx or an unreadable answer; a 4xx is never retried.
+	 * Services the Frenet API offers for the request, retrying a timeout, a connection failure, a 5xx or an unreadable answer; a 4xx other than 408 and 429 is never retried.
 	 *
 	 * @param Request $request
 	 *

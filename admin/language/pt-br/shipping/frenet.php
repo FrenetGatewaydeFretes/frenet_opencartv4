@@ -27,7 +27,7 @@ $_['entry_frenet_key_token']   	= 'Token';
 $_['help_frenet_token']       = 'Token de acesso à API REST da Frenet.';
 $_['help_msg_prazo']          = '%s - Em média %d dia(s)';
 $_['help_timeout']            = 'Quanto cada tentativa de cotação espera a Frenet responder, de 2 a 10 segundos.';
-$_['help_attempts']           = 'Quantas vezes a cotação é enviada quando a Frenet não responde ou responde com erro do servidor, de 1 a 3. Token inválido e outros erros 4xx nunca são repetidos.';
+$_['help_attempts']           = 'Quantas vezes a cotação é enviada quando a Frenet não responde ou responde com erro do servidor, de 1 a 3. Token inválido e as outras recusas da Frenet (erros 4xx, exceto 408 e 429) nunca são repetidos.';
 $_['help_debug']              = 'Grava em frenet.log cada requisição e resposta da cotação, sem o token. Os erros são gravados sempre.';
 
 // Error
