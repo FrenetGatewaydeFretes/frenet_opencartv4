@@ -5,6 +5,7 @@ use Frenet\Api;
 use Frenet\Config as FrenetConfig;
 use Frenet\Http\Client;
 use Frenet\Log as FrenetLog;
+use Frenet\Postcode;
 use Frenet\Quote\Builder;
 use Frenet\Quote\Catalog;
 use Frenet\Quote\Service;
@@ -40,6 +41,12 @@ class Frenet extends Model {
 		$this->load->language('extension/opencartfrenetv4/shipping/frenet');
 
 		$address['iso_code_2'] = $this->getCountryCode($address);
+
+		if (!Postcode::isQuotable((string)($address['postcode'] ?? ''), $address['iso_code_2'])) {
+			$log->debug('Quote skipped: the address has no valid postcode', ['postcode' => $address['postcode'] ?? '', 'country' => $address['iso_code_2']]);
+
+			return $this->getMethod($config, [], $this->language->get('error_postcode'));
+		}
 
 		$request = null;
 
