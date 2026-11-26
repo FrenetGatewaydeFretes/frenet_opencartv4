@@ -6,7 +6,7 @@ $_['heading_title']           = 'Frenet';
 $_['text_extension']          = 'Extensões';
 $_['text_success']            = 'Frete Frenet modificado com sucesso!';
 $_['text_edit']               = 'Editando Frenet';
-$_['text_version']         = 'Versão %s';
+$_['text_version']            = 'Versão %s';
 
 // Entry
 $_['entry_tax_class']         = 'Grupo de Impostos';
@@ -16,6 +16,9 @@ $_['entry_postcode']          = 'CEP de origem';
 $_['entry_sort_order']        = 'Posição';
 $_['entry_frenet_key']        = 'Chave de acesso';
 $_['entry_msg_prazo']         = 'Mensagem que exibe o prazo de entrega';
+$_['entry_timeout']           = 'Tempo limite (segundos)';
+$_['entry_attempts']          = 'Tentativas';
+$_['entry_debug']             = 'Debug';
 
 $_['entry_frenet_token']        = 'Token';
 $_['entry_frenet_key_token']   	= 'Token';
@@ -23,6 +26,9 @@ $_['entry_frenet_key_token']   	= 'Token';
 // Help
 $_['help_frenet_token']       = 'Token de acesso à API REST da Frenet.';
 $_['help_msg_prazo']          = '%s - Em média %d dia(s)';
+$_['help_timeout']            = 'Quanto cada tentativa de cotação espera a Frenet responder, de 2 a 10 segundos.';
+$_['help_attempts']           = 'Quantas vezes a cotação é enviada quando a Frenet não responde ou responde com erro do servidor, de 1 a 3. Token inválido e outros erros 4xx nunca são repetidos.';
+$_['help_debug']              = 'Grava em frenet.log cada requisição e resposta da cotação, sem o token. Os erros são gravados sempre.';
 
 // Error
 $_['error_permission']        = 'Atenção: Você não tem permissão para modificar a extensão Frenet!';
