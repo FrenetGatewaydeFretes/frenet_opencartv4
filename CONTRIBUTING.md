@@ -95,11 +95,13 @@ $this->autoloader->register('Frenet', DIR_EXTENSION . 'opencartfrenetv4/system/l
 | `Frenet\Http\Response` | Status e corpo da resposta, com `isSuccessful()` (2xx) e `isRefused()` (4xx que não vale repetir) |
 | `Frenet\Http\Exception` | Falha de transporte (DNS, conexão, TLS ou tempo limite) |
 | `Frenet\Module` | Versão do módulo, exibida no admin e enviada no `User-Agent` |
-| `Frenet\Api` | Cotação na API REST da Frenet por HTTPS, com o token e o `User-Agent` `Frenet-OpenCart4/<versão> (OpenCart <versão>)` |
+| `Frenet\Api` | Cotação na API REST da Frenet por HTTPS, com o token e o `User-Agent` `Frenet-OpenCart4/<versão> (OpenCart <versão>)`. Repete tempo esgotado, falha de conexão, 5xx e resposta ilegível até o número de tentativas, com 0,3 s entre elas; um 4xx nunca é repetido. Cada falha vai para o `frenet.log`; com debug, também a requisição e a resposta, sem o token |
 | `Frenet\Quote\Request` / `Frenet\Quote\Item` | Corpo da cotação (`PlatformName` `OpenCart4`) e cada item do carrinho |
-| `Frenet\Quote\Parser` | Lê os serviços da resposta, com a lista de vários serviços, de um só serviço ou o serviço fora da lista; deixa de fora os que têm `Error`, ou não têm código ou preço |
+| `Frenet\Quote\Parser` | Lê a resposta, com a lista de vários serviços, de um só serviço ou o serviço fora da lista. Separa os serviços com `Error` (com o `Msg`) e guarda o `Message` geral; deixa de fora os que não têm código ou preço. Cada serviço tem o próprio prazo, sem herdar o do anterior |
+| `Frenet\Quote\Result` | Serviços oferecidos, serviços com erro e `Message` da resposta |
 | `Frenet\Quote\Service` | Serviço oferecido, com o nome do checkout pela mensagem de prazo (`%s` serviço, `%d` dias) e o nome escapado |
 | `Frenet\Quote\Exception` | Resposta da API que não serve como cotação (erro HTTP ou JSON inválido) |
+| `Frenet\Quote\UnavailableException` | Cotação que não veio depois de todas as tentativas ou que a API recusou (4xx) |
 
 ### Configurações da versão 1.0.0
 
@@ -107,7 +109,7 @@ A versão 1.0.0 guardava o token em `shipping_frenet_contrato_token`. Até a con
 
 ### Admin e loja
 
-O model de frete (`catalog/model/shipping/frenet.php`) usa a biblioteca e devolve `title` e `name` no método e em cada serviço. A conversão de peso e medida e o valor declarado continuam os da versão 1.0.0 até a D4, e o imposto até a D5. O controller e o template do admin continuam os da 1.0.0, com a migração do token e a versão; a D5 os reescreve. Os arquivos reescritos entram no fixer e no PHPCompatibility; o PHPStan continua só na biblioteca, porque o model e o controller leem o registro do core, sem tipos, e a regra de negócio fica na biblioteca.
+O model de frete (`catalog/model/shipping/frenet.php`) usa a biblioteca e devolve `title` e `name` no método e em cada serviço. Quando a cotação falha, por qualquer motivo, inclusive um erro inesperado, o bloco Frenet do checkout mostra só "O frete Frenet está indisponível no momento…" (`error_unavailable`), os outros fretes continuam, e o motivo vai para o `frenet.log`. Quando a Frenet não devolve nenhum serviço, o bloco mostra `error_no_services` e o log guarda o `Message`. A configuração tem tempo limite (2 a 10 s, padrão 5), tentativas (1 a 3, padrão 3) e debug. A conversão de peso e medida e o valor declarado continuam os da versão 1.0.0 até a D4, e o imposto até a D5. O controller e o template do admin continuam os da 1.0.0, com a migração do token e a versão; a D5 os reescreve. Os arquivos reescritos entram no fixer e no PHPCompatibility; o PHPStan continua só na biblioteca, porque o model e o controller leem o registro do core, sem tipos, e a regra de negócio fica na biblioteca.
 
 ## Padrão de código
 
@@ -163,6 +165,7 @@ docker run --rm -v "$PWD":/app -w /app php:8.0-cli sh -c 'find admin catalog sys
 | `POST /shipping/quote` com `token: packages`, `packages-msg` ou `packages-busy` | 200 pelo peso enviado, com o limite dos Correios (para a divisão em pacotes) |
 | `POST /shipping/quote` com `token: status-503` (ou outro código) | responde com esse status HTTP |
 | `/mock/status/{código}` | responde com esse status HTTP |
+| `POST /shipping/quote` com `token: slow` | espera 5 s e responde PAC e SEDEX, para testar o tempo limite da cotação |
 | `/mock/delay/{segundos}` | espera antes de responder, para testar tempo limite |
 | `/mock/redirect` | 302 para `/mock/echo`, para conferir que o cliente não segue redirecionamento |
 | `/mock/echo` | devolve método, headers e corpo recebidos |
@@ -181,10 +184,10 @@ Com a variável `FRENET_MOCK_LOG` apontando para um arquivo, o mock grava ali ca
 
 Há dois modos:
 
-- **Instalação** (`run.sh <versão> <php> opencartfrenetv4.ocmod.zip`): envia o pacote em **Extensions → Installer** e instala, instala a Frenet em **Extensions → Extensions → Shipping**, confere o token e a versão na configuração, faz o checkout logado com o token `single-service` (a Frenet devolve um só serviço) e fecha o pedido.
+- **Instalação** (`run.sh <versão> <php> opencartfrenetv4.ocmod.zip`): envia o pacote em **Extensions → Installer** e instala, instala a Frenet em **Extensions → Extensions → Shipping**, confere o token e a versão na configuração, faz o checkout logado com o token `single-service` (a Frenet devolve um só serviço) e fecha o pedido. Depois, com tempo limite de 2 s, abre o checkout em cinco cenários e confere o bloco Frenet e os outros fretes: `slow` (2 tentativas, mensagem de indisponibilidade em menos de 8 s), `status-503` (3 tentativas), `status-401` (sem repetir), `empty` (nenhum serviço) e `with-errors` (o serviço com `Error` some e o serviço sem prazo aparece sem dias). Os textos que o teste viu ficam em `checkout-<cenário>.json`.
 - **Atualização** (`run.sh <versão> <php> opencartfrenetv4.ocmod.zip <1.0.0.zip>`): instala a versão 1.0.0 pelo Instalador com o token em `shipping_frenet_contrato_token`, copia o pacote novo sobre `extension/opencartfrenetv4/` como uma atualização por FTP, faz o checkout com o token antigo, fecha o pedido e abre a configuração, que mostra o token na chave nova.
 
-O teste falha com qualquer erro de JavaScript ou resposta 5xx. Depois do Playwright, o `run.sh` confere que o pedido 1 tem o código `frenet.*` e o nome do serviço, que o token está em `shipping_frenet_token` e nenhuma chave da 1.0.0 sobrou, que o mock recebeu a cotação com o token, `PlatformName` `OpenCart4` e o `User-Agent` com as versões, que a biblioteca carrega pelo autoloader do próprio OpenCart com o token mascarado no `frenet.log`, e que o `error.log` da loja não tem nenhuma linha da Frenet.
+O teste falha com qualquer erro de JavaScript ou resposta 5xx. Depois do Playwright, o `run.sh` confere que o pedido 1 tem o código `frenet.*` e o nome do serviço, que o token está em `shipping_frenet_token` e nenhuma chave da 1.0.0 sobrou, que o mock recebeu a cotação com o token, `PlatformName` `OpenCart4` e o `User-Agent` com as versões, que a biblioteca carrega pelo autoloader do próprio OpenCart com o token mascarado no `frenet.log`, e que o `error.log` da loja não tem nenhuma linha da Frenet. Na instalação, confere também no `frenet.log` as tentativas de cada cenário de falha, que o 401 não foi repetido, o `Message` da cotação vazia e o `Msg` do serviço com erro.
 
 A loja é instalada pelo `install/cli_install.php` do OpenCart, menos a 4.0.0.0: o instalador de linha de comando dessa versão não funciona (falta a constante `APPLICATION`), e o `run.sh` usa o instalador web.
 
