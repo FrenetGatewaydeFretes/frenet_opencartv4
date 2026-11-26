@@ -14,7 +14,8 @@ const SCENARIOS = {
 	'status-503': { error: UNAVAILABLE },
 	'status-401': { error: UNAVAILABLE },
 	empty: { error: NO_SERVICES },
-	'with-errors': { names: [/^SEDEX - 3 dia\(s\) - /, /^Jadlog Package - /] }
+	'with-errors': { names: [/^SEDEX - 3 dia\(s\) - /, /^Jadlog Package - /] },
+	broken: { error: UNAVAILABLE }
 };
 const route = (path, method) => new RegExp(`route=${path}(\\||%7C|\\.)${method}`, 'i');
 
@@ -274,6 +275,7 @@ test('@block shows in the Frenet block of the checkout what the Frenet API answe
 	if (expected.error) {
 		await expect(block.error).toHaveText(expected.error, { timeout: 60000 });
 		await expect(block.frenet).toHaveCount(0);
+		await expect(page.locator('body')).not.toContainText(/\.php|opencartfrenetv4|Frenet\\/);
 	} else {
 		await expect(block.frenet).toHaveCount(expected.names.length, { timeout: 60000 });
 

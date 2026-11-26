@@ -176,16 +176,26 @@ else
 	echo "Running Playwright $PLAYWRIGHT_VERSION: install, settings and checkout"
 	playwright @install
 
-	for scenario in slow status-503 status-401 empty with-errors; do
+	parser=/var/www/html/extension/opencartfrenetv4/system/library/frenet/quote/parser.php
+
+	for scenario in slow status-503 status-401 empty with-errors broken; do
 		attempts=$([ "$scenario" = slow ] && echo 2 || echo 3)
-		echo "Running Playwright $PLAYWRIGHT_VERSION: Frenet block with the token $scenario (time limit 2 s, $attempts attempt(s))"
-		sql "UPDATE oc_setting SET value = '$scenario' WHERE \`key\` = 'shipping_frenet_token';
+		token=$([ "$scenario" = broken ] && echo "$TOKEN" || echo "$scenario")
+		echo "Running Playwright $PLAYWRIGHT_VERSION: Frenet block in the scenario $scenario with the token $token (time limit 2 s, $attempts attempt(s))"
+		sql "UPDATE oc_setting SET value = '$token' WHERE \`key\` = 'shipping_frenet_token';
 			DELETE FROM oc_setting WHERE \`key\` IN ('shipping_frenet_timeout', 'shipping_frenet_attempts', 'shipping_frenet_msg_prazo');
 			INSERT INTO oc_setting (store_id, code, \`key\`, value, serialized) VALUES
 				(0, 'shipping_frenet', 'shipping_frenet_timeout', '2', 0),
 				(0, 'shipping_frenet', 'shipping_frenet_attempts', '$attempts', 0),
 				(0, 'shipping_frenet', 'shipping_frenet_msg_prazo', '%s - %d dia(s)', 0)"
+		if [ "$scenario" = broken ]; then
+			echo "Removing $parser so that the quote fails with an unexpected error"
+			dc exec -T web mv "$parser" "$parser.off"
+		fi
 		E2E_SCENARIO=$scenario playwright @block
+		if [ "$scenario" = broken ]; then
+			dc exec -T web mv "$parser.off" "$parser"
+		fi
 	done
 
 	sql "UPDATE oc_setting SET value = '$TOKEN' WHERE \`key\` = 'shipping_frenet_token'"
@@ -196,6 +206,7 @@ else
 	! grep -q 'Quote attempt [0-9]/3 failed: HTTP 401' <<< "$frenet_log" || fail "the quote refused with HTTP 401 was retried"
 	grep -q 'Quote returned no service: Nenhuma transportadora disponível' <<< "$frenet_log" || fail "frenet.log does not have the message of the quote without services"
 	grep -q 'Services with an error were left out.*Erro: Peso excedido.' <<< "$frenet_log" || fail "frenet.log does not have the Msg of the service with an error"
+	grep -qF 'Quote failed: Class "Frenet\Quote\Parser" not found' <<< "$frenet_log" || fail "frenet.log does not have the unexpected error of the quote"
 fi
 
 echo "Checking the order, the settings, the mock, the library and the logs"
