@@ -4,21 +4,21 @@ namespace Opencart\Catalog\Model\Extension\Opencartfrenetv4\Shipping;
 use Frenet\Api;
 use Frenet\Config as FrenetConfig;
 use Frenet\Http\Client;
-use Frenet\Http\Exception as HttpException;
 use Frenet\Log as FrenetLog;
-use Frenet\Quote\Exception as QuoteException;
 use Frenet\Quote\Item;
 use Frenet\Quote\Request;
 use Frenet\Quote\Service;
+use Frenet\Quote\UnavailableException;
 use Opencart\System\Engine\Model;
 use Opencart\System\Library\Log as CoreLog;
+use Throwable;
 
 /**
  * Frenet shipping method: quotes the cart through the Frenet API and offers each service at checkout.
  */
 class Frenet extends Model {
 	/**
-	 * Shipping method with one option per service the Frenet API offers, or nothing when there is no service to offer.
+	 * Shipping method with one option per service the Frenet API offers, or a message in the Frenet block when the quote fails or no service serves the address.
 	 *
 	 * @param array<string, mixed> $address
 	 *
@@ -31,36 +31,59 @@ class Frenet extends Model {
 		$log = new FrenetLog(new CoreLog(FrenetLog::FILENAME), $config->isDebug());
 
 		if ($config->getToken() === '') {
-			$log->error('Quote skipped: the token is not configured');
+			$log->error('Quote skipped: the token is not configured', ['postcode' => $address['postcode'] ?? '']);
 
-			return [];
-		}
-
-		$api = new Api(new Client(), $config->getToken(), VERSION, $config->getTimeout());
-
-		try {
-			$services = $api->quote($this->createRequest($config, $address));
-		} catch (HttpException|QuoteException $exception) {
-			$log->error('Quote failed: ' . $exception->getMessage(), ['postcode' => $address['postcode'] ?? '']);
-
-			return [];
-		}
-
-		if ($services === []) {
 			return [];
 		}
 
 		$this->load->language('extension/opencartfrenetv4/shipping/frenet');
 
+		$request = null;
+
+		try {
+			$request = $this->createRequest($config, $address);
+			$result = (new Api(new Client(), $log, $config->getToken(), VERSION, $config->getTimeout(), $config->getAttempts()))->quote($request);
+		} catch (Throwable $exception) {
+			$context = $exception instanceof UnavailableException ? [] : ['exception' => $exception::class, 'at' => $exception->getFile() . ':' . $exception->getLine()];
+			$context += $request !== null ? ['request' => $request->toArray()] : ['postcode' => $address['postcode'] ?? ''];
+
+			$log->error('Quote failed: ' . $exception->getMessage(), $context);
+
+			return $this->getMethod($config, [], $this->language->get('error_unavailable'));
+		}
+
+		if ($result->getErrors() !== []) {
+			$log->error('Services with an error were left out of the quote', ['services' => $result->getErrors(), 'request' => $request->toArray()]);
+		}
+
+		if ($result->getServices() === []) {
+			$log->error('Quote returned no service' . ($result->getMessage() !== '' ? ': ' . $result->getMessage() : ''), ['request' => $request->toArray()]);
+
+			return $this->getMethod($config, [], $this->language->get('error_no_services'));
+		}
+
+		return $this->getMethod($config, $this->getOptions($result->getServices(), $config->getDeliveryTimeMessage()), false);
+	}
+
+	/**
+	 * Frenet shipping method, named in both the title key read up to 4.0.1.1 and the name key read from 4.0.2.0.
+	 *
+	 * @param FrenetConfig                        $config
+	 * @param array<string, array<string, mixed>> $options
+	 * @param false|string                        $error
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function getMethod(FrenetConfig $config, array $options, false|string $error): array {
 		$title = $this->language->get('text_title');
 
 		return [
 			'code'       => 'frenet',
 			'title'      => $title,
 			'name'       => $title,
-			'quote'      => $this->getOptions($services, $config->getDeliveryTimeMessage()),
+			'quote'      => $options,
 			'sort_order' => $config->getSortOrder(),
-			'error'      => false
+			'error'      => $error
 		];
 	}
 

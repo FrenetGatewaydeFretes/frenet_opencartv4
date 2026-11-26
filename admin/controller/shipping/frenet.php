@@ -1,6 +1,7 @@
 <?php
 namespace Opencart\Admin\Controller\Extension\Opencartfrenetv4\Shipping;
 
+use Frenet\Config as FrenetConfig;
 use Frenet\Module;
 
 class Frenet extends \Opencart\System\Engine\Controller {
@@ -98,6 +99,22 @@ class Frenet extends \Opencart\System\Engine\Controller {
 		} else {
 			$data['shipping_frenet_sort_order'] = $this->config->get('shipping_frenet_sort_order');
 		}
+
+		$config = new FrenetConfig($this->config);
+		$settings = [
+			'shipping_frenet_timeout'  => $config->getTimeout(),
+			'shipping_frenet_attempts' => $config->getAttempts(),
+			'shipping_frenet_debug'    => (int)$config->isDebug()
+		];
+
+		foreach ($settings as $key => $value) {
+			$data[$key] = $this->request->post[$key] ?? $value;
+		}
+
+		$data['timeout_min'] = FrenetConfig::TIMEOUT_MIN;
+		$data['timeout_max'] = FrenetConfig::TIMEOUT_MAX;
+		$data['attempts_min'] = FrenetConfig::ATTEMPTS_MIN;
+		$data['attempts_max'] = FrenetConfig::ATTEMPTS_MAX;
 
 		$data['text_version'] = sprintf($this->language->get('text_version'), Module::VERSION);
 

@@ -106,6 +106,15 @@ final class ClientTest extends TestCase {
 		self::assertSame(401, $response->getStatusCode());
 	}
 
+	public function testMockQuoteAnswersTooLateForTheTimeLimitWithTheSlowToken(): void {
+		try {
+			(new Client())->post($this->url('/shipping/quote'), '{}', ['Content-Type' => 'application/json', 'token' => 'slow'], 2);
+			self::fail('Expected a timeout');
+		} catch (Exception $exception) {
+			self::assertSame(CURLE_OPERATION_TIMEDOUT, $exception->getCode());
+		}
+	}
+
 	public function testMockQuoteAnswersWithServicesWhenTheTokenIsSent(): void {
 		$response = (new Client())->post($this->url('/shipping/quote'), '{}', ['Content-Type' => 'application/json', 'token' => 'abc'], 5);
 

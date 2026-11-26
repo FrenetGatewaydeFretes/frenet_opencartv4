@@ -75,6 +75,9 @@ if ($path === '/shipping/quote') {
 		} else {
 			echo json_encode(packagesQuote($body));
 		}
+	} elseif ($token === 'slow') {
+		sleep(5);
+		readfile(__DIR__ . '/fixtures/quote.json');
 	} elseif ($token === 'flaky' && flakyFails()) {
 		http_response_code(503);
 		echo json_encode(['Message' => 'Mock failing every other quote']);

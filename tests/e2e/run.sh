@@ -44,15 +44,22 @@ store_log() {
 	dc exec -T web sh -c 'cat "$(php -r "require \"/var/www/html/config.php\"; echo DIR_LOGS;")$1" 2>/dev/null' sh "$1"
 }
 
+keep_results() {
+	mkdir -p "$ARTIFACTS/shots"
+	find "$DIR/test-results" -type f \( -name '*.png' -o -name '*.json' \) -exec cp {} "$ARTIFACTS/shots/" \; 2> /dev/null || true
+}
+
 playwright() {
 	if command -v npx > /dev/null && [ -d node_modules/@playwright/test ]; then
-		BASE_URL="$BASE_URL" E2E_MODE="$MODE" FRENET_PACKAGE="$PACKAGE" FRENET_PREVIOUS_PACKAGE="$PREVIOUS_PACKAGE" npx playwright test --grep "$1"
+		BASE_URL="$BASE_URL" E2E_MODE="$MODE" E2E_SCENARIO="${E2E_SCENARIO:-}" FRENET_PACKAGE="$PACKAGE" FRENET_PREVIOUS_PACKAGE="$PREVIOUS_PACKAGE" npx playwright test --grep "$1"
 	else
-		docker run --rm --network host --ipc host -u "$(id -u):$(id -g)" -e HOME=/tmp -e BASE_URL="$BASE_URL" -e E2E_MODE="$MODE" \
+		docker run --rm --network host --ipc host -u "$(id -u):$(id -g)" -e HOME=/tmp -e BASE_URL="$BASE_URL" -e E2E_MODE="$MODE" -e E2E_SCENARIO="${E2E_SCENARIO:-}" \
 			-e FRENET_PACKAGE=/package/opencartfrenetv4.ocmod.zip -v "$PACKAGE":/package/opencartfrenetv4.ocmod.zip:ro \
 			${PREVIOUS_PACKAGE:+-e FRENET_PREVIOUS_PACKAGE=/previous/opencartfrenetv4.ocmod.zip -v "$PREVIOUS_PACKAGE":/previous/opencartfrenetv4.ocmod.zip:ro} \
 			-v "$DIR":/e2e -w /e2e "mcr.microsoft.com/playwright:v$PLAYWRIGHT_VERSION-noble" sh -c "npm ci --no-audit --no-fund --silent && npx playwright test --grep '$1'"
 	fi
+
+	keep_results
 }
 
 collect() {
@@ -62,6 +69,7 @@ collect() {
 	dc logs --no-color > "$ARTIFACTS/compose.log" 2>&1 || true
 	{ store_log error.log; store_log frenet.log; } > "$ARTIFACTS/opencart.log" 2>&1 || true
 	cp "$WORK/log/requests.jsonl" "$ARTIFACTS/mock-requests.jsonl" 2>/dev/null || true
+	keep_results
 	[ -d "$DIR/test-results" ] && cp -r "$DIR/test-results" "$ARTIFACTS/" || true
 	[ "${E2E_KEEP:-0}" = 1 ] || dc down -v --remove-orphans > /dev/null 2>&1 || true
 	exit $status
@@ -167,6 +175,38 @@ if [ "$MODE" = upgrade ]; then
 else
 	echo "Running Playwright $PLAYWRIGHT_VERSION: install, settings and checkout"
 	playwright @install
+
+	parser=/var/www/html/extension/opencartfrenetv4/system/library/frenet/quote/parser.php
+
+	for scenario in slow status-503 status-401 empty with-errors broken; do
+		attempts=$([ "$scenario" = slow ] && echo 2 || echo 3)
+		token=$([ "$scenario" = broken ] && echo "$TOKEN" || echo "$scenario")
+		echo "Running Playwright $PLAYWRIGHT_VERSION: Frenet block in the scenario $scenario with the token $token (time limit 2 s, $attempts attempt(s))"
+		sql "UPDATE oc_setting SET value = '$token' WHERE \`key\` = 'shipping_frenet_token';
+			DELETE FROM oc_setting WHERE \`key\` IN ('shipping_frenet_timeout', 'shipping_frenet_attempts', 'shipping_frenet_msg_prazo');
+			INSERT INTO oc_setting (store_id, code, \`key\`, value, serialized) VALUES
+				(0, 'shipping_frenet', 'shipping_frenet_timeout', '2', 0),
+				(0, 'shipping_frenet', 'shipping_frenet_attempts', '$attempts', 0),
+				(0, 'shipping_frenet', 'shipping_frenet_msg_prazo', '%s - %d dia(s)', 0)"
+		if [ "$scenario" = broken ]; then
+			echo "Removing $parser so that the quote fails with an unexpected error"
+			dc exec -T web mv "$parser" "$parser.off"
+		fi
+		E2E_SCENARIO=$scenario playwright @block
+		if [ "$scenario" = broken ]; then
+			dc exec -T web mv "$parser.off" "$parser"
+		fi
+	done
+
+	sql "UPDATE oc_setting SET value = '$TOKEN' WHERE \`key\` = 'shipping_frenet_token'"
+	frenet_log=$(store_log frenet.log)
+	grep -q 'Quote attempt 2/2 failed: .*timed out' <<< "$frenet_log" || fail "frenet.log has no second timed out attempt of the slow quote"
+	grep -q 'Quote attempt 3/3 failed: HTTP 503' <<< "$frenet_log" || fail "frenet.log has no third attempt of the quote answered with HTTP 503"
+	grep -q 'refused the quote with HTTP 401.*(not retried)' <<< "$frenet_log" || fail "frenet.log does not say that the HTTP 401 was not retried"
+	! grep -q 'Quote attempt [0-9]/3 failed: HTTP 401' <<< "$frenet_log" || fail "the quote refused with HTTP 401 was retried"
+	grep -q 'Quote returned no service: Nenhuma transportadora disponível' <<< "$frenet_log" || fail "frenet.log does not have the message of the quote without services"
+	grep -q 'Services with an error were left out.*Erro: Peso excedido.' <<< "$frenet_log" || fail "frenet.log does not have the Msg of the service with an error"
+	grep -qE 'Quote failed: Class "Frenet\\Quote\\Parser" not found \{"exception":"Error","at":"[^"]+/system/library/frenet/api\.php:[0-9]+","request":' <<< "$frenet_log" || fail "frenet.log does not have the unexpected error of the quote with its class, place and request"
 fi
 
 echo "Checking the order, the settings, the mock, the library and the logs"
