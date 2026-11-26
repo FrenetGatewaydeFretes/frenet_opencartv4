@@ -43,6 +43,8 @@ Outras diferenças que o código precisa respeitar:
 - **Funções de texto do core** (`oc_strlen`, `utf8_strlen`...) mudam de nome entre as versões; use as funções nativas `mb_*`.
 - **Imposto do frete:** na 4.0.0.0 a 4.0.1.1 o próprio core não aplica imposto sobre nenhum frete.
 - **Log do core:** na 4.0.0.0 o `Log` guarda as linhas e só grava o arquivo quando o objeto é destruído, no fim da requisição; nas outras versões grava na hora.
+- **Checkout:** até a 4.0.1.1 frete e pagamento são escolhidos num `select`; a partir da 4.0.2.0, num modal aberto pelo botão "Choose".
+- **Atualização do módulo:** a partir da 4.0.1.0, o Instalador só remove um pacote depois que as extensões dele são desinstaladas, e desinstalar o frete apaga as configurações `shipping_frenet_*`. Pelo Instalador, a atualização perde o token; copiando os arquivos novos sobre `extension/opencartfrenetv4/` (FTP ou gerenciador de arquivos), as configurações continuam.
 
 ### Regras de PHP
 
@@ -92,8 +94,20 @@ $this->autoloader->register('Frenet', DIR_EXTENSION . 'opencartfrenetv4/system/l
 | `Frenet\Http\Client` | POST via cURL com tempo limite, só HTTP/HTTPS, sem seguir redirecionamento, TLS verificado; envia várias requisições ao mesmo tempo |
 | `Frenet\Http\Response` | Status e corpo da resposta, com `isSuccessful()` (2xx) e `isRefused()` (4xx que não vale repetir) |
 | `Frenet\Http\Exception` | Falha de transporte (DNS, conexão, TLS ou tempo limite) |
+| `Frenet\Module` | Versão do módulo, exibida no admin e enviada no `User-Agent` |
+| `Frenet\Api` | Cotação na API REST da Frenet por HTTPS, com o token e o `User-Agent` `Frenet-OpenCart4/<versão> (OpenCart <versão>)` |
+| `Frenet\Quote\Request` / `Frenet\Quote\Item` | Corpo da cotação (`PlatformName` `OpenCart4`) e cada item do carrinho |
+| `Frenet\Quote\Parser` | Lê os serviços da resposta, com a lista de vários serviços, de um só serviço ou o serviço fora da lista; deixa de fora os que têm `Error`, ou não têm código ou preço |
+| `Frenet\Quote\Service` | Serviço oferecido, com o nome do checkout pela mensagem de prazo (`%s` serviço, `%d` dias) e o nome escapado |
+| `Frenet\Quote\Exception` | Resposta da API que não serve como cotação (erro HTTP ou JSON inválido) |
 
-Os arquivos atuais de `admin/` e `catalog/` são da versão 1.0.0 e são reescritos nas próximas demandas do épico [Frenet-BR/roadmap#1115](https://github.com/Frenet-BR/roadmap/issues/1115).
+### Configurações da versão 1.0.0
+
+A versão 1.0.0 guardava o token em `shipping_frenet_contrato_token`. Até a configuração ser aberta, `Frenet\Config::getToken()` usa essa chave quando `shipping_frenet_token` está vazia, e a cotação continua funcionando. Ao abrir a configuração, o admin move o token para `shipping_frenet_token` e apaga `shipping_frenet_contrato_token`, `shipping_frenet_contrato_codigo` e `shipping_frenet_contrato_senha`.
+
+### Admin e loja
+
+O model de frete (`catalog/model/shipping/frenet.php`) usa a biblioteca e devolve `title` e `name` no método e em cada serviço. A conversão de peso e medida e o valor declarado continuam os da versão 1.0.0 até a D4, e o imposto até a D5. O controller e o template do admin continuam os da 1.0.0, com a migração do token e a versão; a D5 os reescreve. Os arquivos reescritos entram no fixer e no PHPCompatibility; o PHPStan continua só na biblioteca, porque o model e o controller leem o registro do core, sem tipos, e a regra de negócio fica na biblioteca.
 
 ## Padrão de código
 
@@ -102,7 +116,7 @@ O módulo segue o padrão de código do OpenCart 4: o `.php-cs-fixer.php` é o d
 - Classes de fora do arquivo entram por `use`, com alias quando o nome coincide (`use Opencart\System\Engine\Config as CoreConfig;`).
 - Todo método tem um docblock com o resumo em uma linha e os tipos em `@param` e `@return`. O construtor só com propriedades promovidas não tem docblock.
 - Sem comentários no meio do código.
-- Os arquivos de `admin/` e `catalog/` entram no fixer, no PHPStan e no PHPCompatibility à medida que forem reescritos.
+- Os arquivos de `admin/` e `catalog/` entram no fixer e no PHPCompatibility à medida que forem reescritos (`.php-cs-fixer.php` e `phpcs.xml.dist`).
 
 As classes de teste são `final`, e por isso o fixer exige `self::` nas asserções. Casos da mesma regra com entradas diferentes usam `#[TestWith]` ou `#[DataProvider]`.
 
@@ -163,40 +177,43 @@ Com a variável `FRENET_MOCK_LOG` apontando para um arquivo, o mock grava ali ca
 
 ## E2E
 
-`tests/e2e/` instala o pacote numa loja OpenCart 4 limpa, com o zip oficial da versão e o tema padrão, e faz o caminho do lojista com o Playwright:
+`tests/e2e/` monta uma loja OpenCart 4 limpa, com o zip oficial da versão e o tema padrão. Antes do Playwright, o `run.sh` grava no banco um cliente com endereço no Rio de Janeiro, o pagamento na entrega (Cash On Delivery) e as configurações da Frenet, e desliga o aceite dos termos no checkout: a 4.0.0.0 de fábrica pede o aceite de uma página que não existe e nenhum pedido fecha. O cliente entra na loja depois do login no admin: na 4.0.0.0 instalada na raiz, a loja grava o cookie de sessão com `path=//` e o navegador não o devolve; o cookie do admin, com `path=/`, mantém a sessão.
 
-1. envia o `opencartfrenetv4.ocmod.zip` em **Extensions → Installer** e instala o pacote;
-2. instala a Frenet em **Extensions → Extensions**, no tipo **Shipping**;
-3. abre a configuração da Frenet.
+Há dois modos:
 
-O teste falha com qualquer erro de JavaScript ou resposta 5xx. Depois do Playwright, o `run.sh` carrega a biblioteca dentro da loja pelo autoloader do próprio OpenCart, grava uma linha no `frenet.log` e confere que o token saiu mascarado, e confere que o `error.log` da loja não tem nenhuma linha da Frenet.
+- **Instalação** (`run.sh <versão> <php> opencartfrenetv4.ocmod.zip`): envia o pacote em **Extensions → Installer** e instala, instala a Frenet em **Extensions → Extensions → Shipping**, confere o token e a versão na configuração, faz o checkout logado com o token `single-service` (a Frenet devolve um só serviço) e fecha o pedido.
+- **Atualização** (`run.sh <versão> <php> opencartfrenetv4.ocmod.zip <1.0.0.zip>`): instala a versão 1.0.0 pelo Instalador com o token em `shipping_frenet_contrato_token`, copia o pacote novo sobre `extension/opencartfrenetv4/` como uma atualização por FTP, faz o checkout com o token antigo, fecha o pedido e abre a configuração, que mostra o token na chave nova.
+
+O teste falha com qualquer erro de JavaScript ou resposta 5xx. Depois do Playwright, o `run.sh` confere que o pedido 1 tem o código `frenet.*` e o nome do serviço, que o token está em `shipping_frenet_token` e nenhuma chave da 1.0.0 sobrou, que o mock recebeu a cotação com o token, `PlatformName` `OpenCart4` e o `User-Agent` com as versões, que a biblioteca carrega pelo autoloader do próprio OpenCart com o token mascarado no `frenet.log`, e que o `error.log` da loja não tem nenhuma linha da Frenet.
 
 A loja é instalada pelo `install/cli_install.php` do OpenCart, menos a 4.0.0.0: o instalador de linha de comando dessa versão não funciona (falta a constante `APPLICATION`), e o `run.sh` usa o instalador web.
 
 O `compose.yml` sobe o MariaDB, o OpenCart com a versão de PHP pedida, o mock da Frenet e um nginx com o nome `api.frenet.com.br`, que atende o mock por HTTPS com um certificado de uma CA criada a cada execução e confiada só no container da loja.
 
-O CI roda o E2E em 7 versões, cada uma no menor e no maior PHP que ela aceita:
+O CI roda o E2E em 7 versões: a instalação no menor e no maior PHP que cada uma aceita, e a atualização no maior. O pacote da 1.0.0 é gerado do commit publicado na `main` (`PUBLISHED_COMMIT` no workflow).
 
-| OpenCart | PHP |
-| --- | --- |
-| 4.0.0.0 | 8.0 e 8.1 |
-| 4.0.1.1 | 8.0 e 8.1 |
-| 4.0.2.0 | 8.0 e 8.3 |
-| 4.0.2.3 | 8.0 e 8.3 |
-| 4.1.0.0 | 8.0 e 8.5 |
-| 4.1.0.3 | 8.0 e 8.5 |
-| 4.1.0.4 | 8.1 e 8.5 |
+| OpenCart | Instalação | Atualização |
+| --- | --- | --- |
+| 4.0.0.0 | PHP 8.0 e 8.1 | PHP 8.1 |
+| 4.0.1.1 | PHP 8.0 e 8.1 | PHP 8.1 |
+| 4.0.2.0 | PHP 8.0 e 8.3 | PHP 8.3 |
+| 4.0.2.3 | PHP 8.0 e 8.3 | PHP 8.3 |
+| 4.1.0.0 | PHP 8.0 e 8.5 | PHP 8.5 |
+| 4.1.0.3 | PHP 8.0 e 8.5 | PHP 8.5 |
+| 4.1.0.4 | PHP 8.1 e 8.5 | PHP 8.5 |
 
-As capturas do instalador e da configuração e os logs da loja ficam nos artefatos `e2e-<versão>-php<versão>` da execução; vídeo e trace só quando o teste falha. O teste espera pela tela com localizadores e asserções do Playwright (`expect(...).toBeVisible()`), sem `networkidle` nem esperas fixas.
+As capturas (instalador, configuração, frete no checkout e pedido no admin), os logs da loja e as cotações recebidas pelo mock ficam nos artefatos `e2e-<modo>-<versão>-php<versão>` da execução; vídeo e trace só quando o teste falha. O teste espera pela tela com localizadores e asserções do Playwright (`expect(...).toBeVisible()`), sem `networkidle` nem esperas fixas.
 
 Para rodar na máquina, com o Docker:
 
 ```bash
 git archive --format=zip --output=opencartfrenetv4.ocmod.zip HEAD install.json admin catalog system
 tests/e2e/run.sh 4.1.0.4 8.1 opencartfrenetv4.ocmod.zip
+git archive --format=zip --output=previous.ocmod.zip 3ae7a7befc82ef1a16285703699f249f612de99a install.json admin catalog
+tests/e2e/run.sh 4.1.0.4 8.5 opencartfrenetv4.ocmod.zip previous.ocmod.zip
 ```
 
-O `run.sh` usa o Playwright de `tests/e2e/node_modules` quando há Node na máquina e, sem ele, a imagem `mcr.microsoft.com/playwright` da mesma versão do `package.json`. A loja responde em `http://localhost:8080` (mude com `E2E_PORT`) e é apagada no fim; com `E2E_KEEP=1`, ela continua de pé para investigar. Os resultados ficam em `tests/e2e/.work/artifacts/<versão>-php<versão>`.
+O `run.sh` usa o Playwright de `tests/e2e/node_modules` quando há Node na máquina e, sem ele, a imagem `mcr.microsoft.com/playwright` da mesma versão do `package.json`. A loja responde em `http://localhost:8080` (mude com `E2E_PORT`) e é apagada no fim; com `E2E_KEEP=1`, ela continua de pé para investigar. Os resultados ficam em `tests/e2e/.work/artifacts/<versão>-php<versão>-<modo>`.
 
 ## Actions do CI
 
