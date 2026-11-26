@@ -31,7 +31,7 @@ class Frenet extends \Opencart\System\Engine\Controller {
 		}
 
 		if (($this->request->server['REQUEST_METHOD'] == 'POST') && $this->validate()) {
-			$this->model_setting_setting->editSetting('shipping_frenet', $this->request->post);
+			$this->model_setting_setting->editSetting('shipping_frenet', $this->withDefaultMinimums($this->request->post));
 
 			$this->session->data['success'] = $this->language->get('text_success');
 
@@ -159,6 +159,28 @@ class Frenet extends \Opencart\System\Engine\Controller {
 		}
 
 		$this->model_setting_setting->editSetting('shipping_frenet', array_diff_key($settings, $legacy));
+	}
+
+	/**
+	 * Settings to save with the default of each minimum measure and of the default weight that is empty, zero or not a number.
+	 *
+	 * @param array<string, mixed> $settings
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function withDefaultMinimums(array $settings): array {
+		$defaults = [
+			'shipping_frenet_minimum_height' => FrenetConfig::DEFAULT_HEIGHT,
+			'shipping_frenet_minimum_width'  => FrenetConfig::DEFAULT_WIDTH,
+			'shipping_frenet_minimum_length' => FrenetConfig::DEFAULT_LENGTH,
+			'shipping_frenet_default_weight' => FrenetConfig::DEFAULT_WEIGHT
+		];
+
+		foreach ($defaults as $key => $default) {
+			$settings[$key] = $this->formatNumber(FrenetConfig::parsePositive($settings[$key] ?? '') ?? $default);
+		}
+
+		return $settings;
 	}
 
 	/**
