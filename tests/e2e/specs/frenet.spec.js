@@ -10,7 +10,7 @@ const PRODUCT_ID = 40;
 const UNAVAILABLE = 'Frenet shipping is unavailable right now. Choose another delivery option or try again in a moment.';
 const NO_SERVICES = 'No Frenet delivery option serves this address.';
 const SCENARIOS = {
-	slow: { error: UNAVAILABLE, limit: 8000 },
+	slow: { error: UNAVAILABLE, limit: 2 * 2000 + 300 + 1000 },
 	'status-503': { error: UNAVAILABLE },
 	'status-401': { error: UNAVAILABLE },
 	empty: { error: NO_SERVICES },
