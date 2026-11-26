@@ -136,7 +136,9 @@ class Frenet extends Model {
 				$this->getLengthInCm((int)$product['length_class_id'], (float)$product['length']),
 				$this->getLengthInCm((int)$product['length_class_id'], (float)$product['height']),
 				$this->getLengthInCm((int)$product['length_class_id'], (float)$product['width']),
-				$quantity
+				$quantity,
+				'',
+				''
 			);
 		}
 

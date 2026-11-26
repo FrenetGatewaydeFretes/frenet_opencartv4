@@ -9,7 +9,7 @@ use PHPUnit\Framework\TestCase;
 
 final class RequestTest extends TestCase {
 	public function testBuildsTheBodyOfTheFrenetApi(): void {
-		$request = new Request('01310100', '20040020', 'BR', 150.5, 'DESCONTO10', [new Item(0.5, 16.0, 2.0, 11.0, 3)], '4.1.0.4');
+		$request = new Request('01310100', '20040020', 'BR', 150.5, 'DESCONTO10', [new Item(0.5, 16.0, 2.0, 11.0, 3, 'CAM-AZ-M', 'Moda|Camisetas')], '4.1.0.4');
 
 		self::assertSame([
 			'SellerCEP'            => '01310100',
@@ -26,8 +26,8 @@ final class RequestTest extends TestCase {
 				'Height'    => 2.0,
 				'Width'     => 11.0,
 				'Diameter'  => 0,
-				'SKU'       => '',
-				'Category'  => '',
+				'SKU'       => 'CAM-AZ-M',
+				'Category'  => 'Moda|Camisetas',
 				'isFragile' => false,
 				'Quantity'  => 3
 			]]
