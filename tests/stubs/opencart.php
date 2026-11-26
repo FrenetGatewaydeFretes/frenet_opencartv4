@@ -11,14 +11,14 @@ namespace Opencart\System\Engine {
 			private array $data = [];
 
 			/**
-			 * Value of a setting, or null when it is not set.
+			 * Value of a setting, or an empty string when it is not set, as the core returns.
 			 *
 			 * @param string $key
 			 *
 			 * @return mixed
 			 */
 			public function get(string $key): mixed {
-				return $this->data[$key] ?? null;
+				return $this->data[$key] ?? '';
 			}
 
 			/**
