@@ -1,15 +1,32 @@
 <?php
 namespace Opencart\Admin\Controller\Extension\Opencartfrenetv4\Shipping;
 
+use Frenet\Module;
+
 class Frenet extends \Opencart\System\Engine\Controller {
+	/**
+	 * @var array<int, string>
+	 */
+	private const LEGACY_SETTINGS = [
+		'shipping_frenet_contrato_codigo',
+		'shipping_frenet_contrato_senha',
+		'shipping_frenet_contrato_token'
+	];
+
 	private $error = array();
 
 	public function index() {
+		$this->autoloader->register('Frenet', DIR_EXTENSION . 'opencartfrenetv4/system/library/frenet/');
+
 		$data = $this->load->language('extension/opencartfrenetv4/shipping/frenet');
 
 		$this->document->setTitle($this->language->get('heading_title'));
 
 		$this->load->model('setting/setting');
+
+		if ($this->request->server['REQUEST_METHOD'] != 'POST') {
+			$this->migrateLegacySettings();
+		}
 
 		if (($this->request->server['REQUEST_METHOD'] == 'POST') && $this->validate()) {
 			$this->model_setting_setting->editSetting('shipping_frenet', $this->request->post);
@@ -70,22 +87,10 @@ class Frenet extends \Opencart\System\Engine\Controller {
 			$data['shipping_frenet_msg_prazo'] = $this->config->get('shipping_frenet_msg_prazo');
 		}
 
-		if (isset($this->request->post['shipping_frenet_contrato_codigo'])) {
-			$data['shipping_frenet_contrato_codigo'] = $this->request->post['shipping_frenet_contrato_codigo'];
+		if (isset($this->request->post['shipping_frenet_token'])) {
+			$data['shipping_frenet_token'] = $this->request->post['shipping_frenet_token'];
 		} else {
-			$data['shipping_frenet_contrato_codigo'] = $this->config->get('shipping_frenet_contrato_codigo');
-		}
-
-		if (isset($this->request->post['shipping_frenet_contrato_senha'])) {
-			$data['shipping_frenet_contrato_senha'] = $this->request->post['shipping_frenet_contrato_senha'];
-		} else {
-			$data['shipping_frenet_contrato_senha'] = $this->config->get('shipping_frenet_contrato_senha');
-		}
-
-		if (isset($this->request->post['shipping_frenet_contrato_token'])) {
-			$data['shipping_frenet_contrato_token'] = $this->request->post['shipping_frenet_contrato_token'];
-		} else {
-			$data['shipping_frenet_contrato_token'] = $this->config->get('shipping_frenet_contrato_token');
+			$data['shipping_frenet_token'] = $this->model_setting_setting->getValue('shipping_frenet_token');
 		}
 
 		if (isset($this->request->post['shipping_frenet_sort_order'])) {
@@ -94,11 +99,35 @@ class Frenet extends \Opencart\System\Engine\Controller {
 			$data['shipping_frenet_sort_order'] = $this->config->get('shipping_frenet_sort_order');
 		}
 
+		$data['text_version'] = sprintf($this->language->get('text_version'), Module::VERSION);
+
 		$data['header'] = $this->load->controller('common/header');
 		$data['column_left'] = $this->load->controller('common/column_left');
 		$data['footer'] = $this->load->controller('common/footer');
 
 		$this->response->setOutput($this->load->view('extension/opencartfrenetv4/shipping/frenet', $data));
+	}
+
+	/**
+	 * Moves the token saved by version 1.0.0 to shipping_frenet_token and removes the settings of 1.0.0 that are no longer used.
+	 *
+	 * @return void
+	 */
+	private function migrateLegacySettings(): void {
+		$settings = $this->model_setting_setting->getSetting('shipping_frenet');
+		$legacy = array_intersect_key($settings, array_flip(self::LEGACY_SETTINGS));
+
+		if (!$legacy) {
+			return;
+		}
+
+		$token = trim((string)($settings['shipping_frenet_token'] ?? ''));
+
+		if ($token === '') {
+			$settings['shipping_frenet_token'] = trim((string)($settings['shipping_frenet_contrato_token'] ?? ''));
+		}
+
+		$this->model_setting_setting->editSetting('shipping_frenet', array_diff_key($settings, $legacy));
 	}
 
 	protected function validate() {

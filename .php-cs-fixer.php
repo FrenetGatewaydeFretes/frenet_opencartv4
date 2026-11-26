@@ -176,5 +176,8 @@ return $config
             __DIR__ . '/tests/',
         ])
         ->exclude(['e2e/node_modules'])
+        ->append([
+            __DIR__ . '/catalog/model/shipping/frenet.php',
+        ])
     )
 ;

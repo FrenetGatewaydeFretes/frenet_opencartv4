@@ -6,6 +6,7 @@ $_['heading_title']           = 'Frenet';
 $_['text_extension']          = 'Extensões';
 $_['text_success']            = 'Frete Frenet modificado com sucesso!';
 $_['text_edit']               = 'Editando Frenet';
+$_['text_version']         = 'Versão %s';
 
 // Entry
 $_['entry_tax_class']         = 'Grupo de Impostos';
