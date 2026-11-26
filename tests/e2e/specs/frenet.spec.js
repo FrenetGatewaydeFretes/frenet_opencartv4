@@ -272,7 +272,8 @@ test('@block shows in the Frenet block of the checkout what the Frenet API answe
 	const scenario = process.env.E2E_SCENARIO || '';
 	const expected = SCENARIOS[scenario];
 
-	test.skip(!expected, 'no scenario');
+	test.skip(!scenario, 'no scenario');
+	expect(expected, `unknown scenario ${scenario}`).toBeDefined();
 
 	const errors = watch(page);
 
@@ -287,6 +288,7 @@ test('@block shows in the Frenet block of the checkout what the Frenet API answe
 		await expect(page.locator('body')).not.toContainText(/\.php|opencartfrenetv4|Frenet\\/);
 	} else {
 		await expect(block.frenet).toHaveCount(expected.names.length, { timeout: 60000 });
+		await expect(block.error).toHaveCount(0);
 
 		for (const [index, name] of expected.names.entries()) {
 			await expect(block.frenet.nth(index)).toHaveText(name);
