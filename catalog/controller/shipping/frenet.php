@@ -137,7 +137,7 @@ class Frenet extends Controller {
 		}
 
 		try {
-			$json = $this->simulate();
+			$json = $this->simulate($log);
 		} catch (Throwable $exception) {
 			$log->error('Simulator quote failed: ' . $exception->getMessage(), ['exception' => $exception::class, 'at' => $exception->getFile() . ':' . $exception->getLine()]);
 
@@ -150,9 +150,11 @@ class Frenet extends Controller {
 	/**
 	 * Rates of the product for the postcode, or the error of each field the buyer must fix, keyed like the cart button errors.
 	 *
+	 * @param FrenetLog $log
+	 *
 	 * @return array<string, mixed>
 	 */
-	private function simulate(): array {
+	private function simulate(FrenetLog $log): array {
 		$post = $this->request->post;
 		$typed = $post['postcode'] ?? '';
 		$postcode = Postcode::getDigits(is_string($typed) ? $typed : '');
@@ -199,6 +201,8 @@ class Frenet extends Controller {
 		$product = (new SimulatorCart($this->registry, $this->db, DB_PREFIX))->getProduct($cart_product_id, $quantity, $options, $subscription_plan_id);
 
 		if ($product === null) {
+			$log->error('Simulator could not read the product through the cart of the store, which may have been changed by another extension', ['product_id' => $cart_product_id]);
+
 			return ['error' => ['warning' => $this->language->get('error_simulator_product')]];
 		}
 
