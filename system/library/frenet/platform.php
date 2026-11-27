@@ -28,7 +28,7 @@ class Platform {
 	/**
 	 * @var string
 	 */
-	private const SKU_IN_PRODUCT_CODE = '4.1.0.4';
+	private const SKU_IN_PRODUCT_CODE = '4.1.0.3';
 
 	public function __construct(private string $version) {}
 
@@ -102,7 +102,7 @@ class Platform {
 	}
 
 	/**
-	 * Whether the SKU lives in product_code; until 4.1.0.3 it is a column of product.
+	 * Whether the SKU lives in product_code, where the admin writes it from 4.1.0.3; before, it is a column of product.
 	 *
 	 * @return bool
 	 */

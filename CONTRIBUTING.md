@@ -31,7 +31,7 @@ Toda diferença entre versões passa pela classe `Frenet\Platform`, criada com a
 | Ação de eventos | A ação gravada no banco não passa pela conversão: `\|` até a 4.0.1.1, `.` depois | `getEventAction()` |
 | Registro de eventos | `addEvent()` recebe valores separados na 4.0.0.0 e um array a partir da 4.0.1.0 | `getEventArguments()` |
 | Promoções | `product_special` até a 4.0.2.3; `product_discount` com `special` a partir da 4.1.0.0 | `hasProductSpecialTable()` |
-| SKU | Coluna `sku` de `product` até a 4.1.0.3; tabela `product_code` na 4.1.0.4 | `hasSkuInProductCode()` |
+| SKU | Coluna `sku` de `product` até a 4.1.0.0; a partir da 4.1.0.3, o admin grava em `product_code` (`code` `SKU`) e a atualização move a coluna para lá com o código `sku` e a apaga | `hasSkuInProductCode()` |
 
 Outras diferenças que o código precisa respeitar:
 
