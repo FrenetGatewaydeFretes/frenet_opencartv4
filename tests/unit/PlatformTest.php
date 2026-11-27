@@ -58,6 +58,35 @@ final class PlatformTest extends TestCase {
 		self::assertSame($sku_in_code, $platform->hasSkuInProductCode());
 	}
 
+	public function testAddsEveryValueOfTheVariantOnTheFirstRelease(): void {
+		self::assertSame(['226' => '15', '227' => '17'], (new Platform('4.0.0.0'))->getVariantOptions(['226' => '15', '227' => '17'], []));
+	}
+
+	#[TestWith(['4.0.1.0'])]
+	#[TestWith(['4.0.2.1'])]
+	public function testAddsTheValuesOfTheVariantListedInTheOverride(string $version): void {
+		$platform = new Platform($version);
+
+		self::assertSame(['226' => '15'], $platform->getVariantOptions(['226' => '15', '227' => '17'], ['226']));
+		self::assertSame([], $platform->getVariantOptions(['226' => '15'], ['226' => '1']));
+	}
+
+	#[TestWith(['4.0.2.2'])]
+	#[TestWith(['4.1.0.4'])]
+	public function testAddsTheValuesOfTheVariantKeyedInTheOverride(string $version): void {
+		$platform = new Platform($version);
+
+		self::assertSame(['226' => '15'], $platform->getVariantOptions(['226' => '15', '227' => '17'], ['226' => '1']));
+		self::assertSame([], $platform->getVariantOptions(['226' => '15'], ['226']));
+	}
+
+	#[TestWith(['4.0.0.0', false])]
+	#[TestWith(['4.1.0.3', false])]
+	#[TestWith(['4.1.0.4', true])]
+	public function testKnowsWhetherTheCartButtonAddsTheVariantOrItsMaster(string $version, bool $variant): void {
+		self::assertSame($variant, (new Platform($version))->addsVariantToCart());
+	}
+
 	public function testTreatsAnUnknownVersionAsTheFirstRelease(): void {
 		$platform = new Platform('');
 

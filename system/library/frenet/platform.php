@@ -30,6 +30,21 @@ class Platform {
 	 */
 	private const SKU_IN_PRODUCT_CODE = '4.1.0.3';
 
+	/**
+	 * @var string
+	 */
+	private const VARIANT_OVERRIDE_LIST = '4.0.1.0';
+
+	/**
+	 * @var string
+	 */
+	private const VARIANT_OVERRIDE_KEYS = '4.0.2.2';
+
+	/**
+	 * @var string
+	 */
+	private const VARIANT_IN_CART = '4.1.0.4';
+
 	public function __construct(private string $version) {}
 
 	/**
@@ -108,6 +123,39 @@ class Platform {
 	 */
 	public function hasSkuInProductCode(): bool {
 		return $this->isAtLeast(self::SKU_IN_PRODUCT_CODE);
+	}
+
+	/**
+	 * Values of the variant the cart button adds to the options: all up to 4.0.0.0, then only the ones the variant overrides.
+	 *
+	 * @param array<int|string, mixed> $variant
+	 * @param array<int|string, mixed> $override
+	 *
+	 * @return array<int|string, mixed>
+	 */
+	public function getVariantOptions(array $variant, array $override): array {
+		if (!$this->isAtLeast(self::VARIANT_OVERRIDE_LIST)) {
+			return $variant;
+		}
+
+		$keys = [];
+
+		foreach ($this->isAtLeast(self::VARIANT_OVERRIDE_KEYS) ? array_keys($override) : $override as $key) {
+			if (is_int($key) || is_string($key)) {
+				$keys[] = (string)$key;
+			}
+		}
+
+		return array_filter($variant, static fn (int|string $key): bool => in_array((string)$key, $keys, true), ARRAY_FILTER_USE_KEY);
+	}
+
+	/**
+	 * Whether the cart button adds a variant as itself, from 4.1.0.4, or as its master product, before.
+	 *
+	 * @return bool
+	 */
+	public function addsVariantToCart(): bool {
+		return $this->isAtLeast(self::VARIANT_IN_CART);
 	}
 
 	/**

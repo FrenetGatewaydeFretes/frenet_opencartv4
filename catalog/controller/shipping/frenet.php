@@ -179,7 +179,12 @@ class Frenet extends Controller {
 			return ['error' => ['warning' => $this->language->get('error_simulator_product')]];
 		}
 
-		$errors = $this->getChoiceErrors($product_info, $options, $subscription_plan_id);
+		$platform = new Platform(VERSION);
+		$override = $product_info['override']['variant'] ?? [];
+		$options = array_replace($options, $platform->getVariantOptions((array)($product_info['variant'] ?? []), is_array($override) ? $override : []));
+		$cart_product_id = $product_info['master_id'] && !$platform->addsVariantToCart() ? (int)$product_info['master_id'] : (int)$product_info['product_id'];
+
+		$errors = $this->getChoiceErrors($product_info, $options, $subscription_plan_id, $cart_product_id);
 
 		if ($errors) {
 			return ['error' => $errors];
@@ -191,7 +196,7 @@ class Frenet extends Controller {
 			return ['error' => ['quantity' => sprintf($this->language->get('error_simulator_minimum'), $minimum)]];
 		}
 
-		$product = (new SimulatorCart($this->registry, $this->db, DB_PREFIX))->getProduct($product_id, $quantity, $options, $subscription_plan_id);
+		$product = (new SimulatorCart($this->registry, $this->db, DB_PREFIX))->getProduct($cart_product_id, $quantity, $options, $subscription_plan_id);
 
 		if ($product === null) {
 			return ['error' => ['warning' => $this->language->get('error_simulator_product')]];
@@ -226,29 +231,25 @@ class Frenet extends Controller {
 	}
 
 	/**
-	 * Errors of the required options left empty and of the subscription not chosen, as the cart button of the core checks them.
+	 * Errors of the required options left empty and of the subscription not chosen, as the cart button checks them.
 	 *
 	 * @param array<string, mixed>     $product_info
 	 * @param array<int|string, mixed> $options
 	 * @param int                      $subscription_plan_id
+	 * @param int                      $cart_product_id
 	 *
 	 * @return array<string, string>
 	 */
-	private function getChoiceErrors(array $product_info, array $options, int $subscription_plan_id): array {
+	private function getChoiceErrors(array $product_info, array $options, int $subscription_plan_id, int $cart_product_id): array {
 		$errors = [];
-		$chosen = $options;
-
-		foreach ((array)($product_info['variant'] ?? []) as $key => $value) {
-			$chosen[$key] = $value;
-		}
 
 		foreach ($this->model_catalog_product->getOptions((int)($product_info['master_id'] ?: $product_info['product_id'])) as $option) {
-			if ($option['required'] && empty($chosen[$option['product_option_id']])) {
+			if ($option['required'] && empty($options[$option['product_option_id']])) {
 				$errors['option_' . $option['product_option_id']] = sprintf($this->language->get('error_simulator_option'), html_entity_decode((string)$option['name'], ENT_QUOTES, 'UTF-8'));
 			}
 		}
 
-		$subscriptions = $this->model_catalog_product->getSubscriptions((int)$product_info['product_id']);
+		$subscriptions = $this->model_catalog_product->getSubscriptions($cart_product_id);
 
 		if ($subscriptions && !in_array($subscription_plan_id, array_map('intval', array_column($subscriptions, 'subscription_plan_id')), true)) {
 			$errors['subscription'] = $this->language->get('error_simulator_subscription');
