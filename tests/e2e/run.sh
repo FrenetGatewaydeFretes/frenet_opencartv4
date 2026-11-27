@@ -311,7 +311,13 @@ else
 	echo "Running Playwright $PLAYWRIGHT_VERSION: simulator turned off"
 	sql "DELETE FROM oc_setting WHERE \`key\` IN ('shipping_frenet_simulator', 'shipping_frenet_simulator_limit'); INSERT INTO oc_setting (store_id, code, \`key\`, value, serialized) VALUES (0, 'shipping_frenet', 'shipping_frenet_simulator', '0', 0)"
 	playwright @simulator-off
-	sql "DELETE FROM oc_setting WHERE \`key\` = 'shipping_frenet_simulator'; UPDATE oc_setting SET value = '$TOKEN' WHERE \`key\` = 'shipping_frenet_token'"
+	sql "DELETE FROM oc_setting WHERE \`key\` = 'shipping_frenet_simulator'"
+
+	echo "Running Playwright $PLAYWRIGHT_VERSION: simulator on a variant of the shirt, with another price and weight"
+	add_product 1006 'Camiseta variante' 500 1 5 kg 40 10 30 cm
+	sql "UPDATE oc_product SET master_id = 1001, variant = '{}', override = '{}' WHERE product_id = 1006; DELETE FROM oc_cart; UPDATE oc_setting SET value = 'simulator-variant' WHERE \`key\` = 'shipping_frenet_token'"
+	playwright @simulator-variant
+	sql "DELETE FROM oc_cart; UPDATE oc_setting SET value = '$TOKEN' WHERE \`key\` = 'shipping_frenet_token'"
 
 	echo "Running Playwright $PLAYWRIGHT_VERSION: settings saved with a postcode of 4 digits and Frenet enabled without a token"
 	sql "DELETE FROM oc_setting WHERE \`key\` = 'shipping_frenet_token'; DELETE FROM oc_cart"

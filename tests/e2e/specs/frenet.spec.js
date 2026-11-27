@@ -734,6 +734,33 @@ test('@simulator-off shows no simulator and refuses its quotes when turned off',
 	expect(errors).toEqual([]);
 });
 
+test('@simulator-variant quotes a variant as the cart button adds it to the cart', async ({ page }, testInfo) => {
+	const errors = watch(page);
+
+	await login(page);
+	await loginCustomer(page);
+	await openProduct(page, 1006);
+	await simulate(page, '20040-020', '1');
+	await expect(page.locator('#frenet-simulator-result tr')).not.toHaveCount(0);
+	await page.screenshot({ path: testInfo.outputPath('simulator-variant.png'), fullPage: true });
+
+	const added = await page.request.post('index.php?route=checkout/cart|add', { form: { product_id: '1006', quantity: '1' } });
+
+	expect((await added.json()).success).toBeTruthy();
+
+	await openCheckout(page);
+
+	const block = await showShippingMethods(page);
+
+	await expect(block.frenet.first()).toBeAttached({ timeout: 60000 });
+
+	const bodies = readRequests().filter((request) => request.headers.token === 'simulator-variant').map((request) => JSON.stringify(request.body));
+
+	expect(bodies).toHaveLength(2);
+	expect(new Set(bodies).size).toBe(1);
+	expect(errors).toEqual([]);
+});
+
 test('@uninstall removes Frenet from Extensions > Extensions > Shipping', async ({ page }) => {
 	const errors = watch(page);
 	const token = await login(page);
