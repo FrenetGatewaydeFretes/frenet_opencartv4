@@ -53,7 +53,7 @@ final class CatalogTest extends TestCase {
 		self::assertSame(['sku' => 'product 11', 'category' => ''], $products[40]);
 		self::assertSame(['sku' => 'CAM-AZ-M', 'category' => ''], $products[41]);
 		self::assertStringContainsString('SELECT `product_id`, `model` FROM `oc_product` WHERE', $db->queries[0]);
-		self::assertStringContainsString("FROM `oc_product_code` WHERE `code` = 'SKU' AND `product_id` IN (40,41) ORDER BY `product_code_id`", $db->queries[1]);
+		self::assertStringContainsString("FROM `oc_product_code` WHERE UPPER(`code`) = 'SKU' AND `product_id` IN (40,41) ORDER BY `product_code_id`", $db->queries[1]);
 	}
 
 	public function testSendsTheModelWhenTheProductHasNoSkuCode(): void {

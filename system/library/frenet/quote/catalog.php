@@ -44,7 +44,7 @@ class Catalog {
 		if ($this->sku_in_product_code) {
 			$coded = [];
 
-			foreach ($this->getRows("SELECT `product_id`, `value` FROM `" . $this->prefix . "product_code` WHERE `code` = '" . self::SKU_CODE . "' AND `product_id` IN (" . $ids . ") ORDER BY `product_code_id`") as $row) {
+			foreach ($this->getRows("SELECT `product_id`, `value` FROM `" . $this->prefix . "product_code` WHERE UPPER(`code`) = '" . self::SKU_CODE . "' AND `product_id` IN (" . $ids . ") ORDER BY `product_code_id`") as $row) {
 				$product_id = $this->getId($row);
 				$value = $this->decode($row['value'] ?? '');
 
