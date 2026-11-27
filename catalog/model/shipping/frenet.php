@@ -78,7 +78,7 @@ class Frenet extends Model {
 
 		$template = $config->isDeliveryTimeShown() ? ($config->getDeliveryTimeMessage() ?: $this->language->get('text_delivery_time')) : '';
 
-		return $this->getMethod($config, $this->getOptions($result->getServices(), $template, $config->getAdditionalDays()), false);
+		return $this->getMethod($config, $this->getOptions($result->getServices(), $template, $config->getAdditionalDays(), $config->getTaxClassId()), false);
 	}
 
 	/**
@@ -109,10 +109,11 @@ class Frenet extends Model {
 	 * @param array<int, Service> $services
 	 * @param string              $template
 	 * @param int                 $additional_days
+	 * @param int                 $tax_class_id
 	 *
 	 * @return array<string, array<string, mixed>>
 	 */
-	private function getOptions(array $services, string $template, int $additional_days): array {
+	private function getOptions(array $services, string $template, int $additional_days, int $tax_class_id): array {
 		$options = [];
 
 		foreach ($services as $service) {
@@ -123,8 +124,8 @@ class Frenet extends Model {
 				'title'        => $name,
 				'name'         => $name,
 				'cost'         => $service->getPrice(),
-				'tax_class_id' => 0,
-				'text'         => $this->currency->format($this->tax->calculate($service->getPrice(), 0, (bool)$this->config->get('config_tax')), $this->session->data['currency'])
+				'tax_class_id' => $tax_class_id,
+				'text'         => $this->currency->format($this->tax->calculate($service->getPrice(), $tax_class_id, (bool)$this->config->get('config_tax')), $this->session->data['currency'])
 			];
 		}
 
