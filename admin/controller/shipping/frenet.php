@@ -5,11 +5,12 @@ use Frenet\Config as FrenetConfig;
 use Frenet\Module;
 use Frenet\Platform;
 use Frenet\Postcode;
+use Frenet\Simulator\RateLimit;
 use Frenet\UnitClass;
 use Opencart\System\Engine\Controller;
 
 /**
- * Frenet shipping settings: the form, its AJAX save with validation and the move of the settings of version 1.0.0.
+ * Frenet shipping settings: the form, its AJAX save with validation, the move of the settings of version 1.0.0 and the simulator event.
  */
 class Frenet extends Controller {
 	/**
@@ -21,6 +22,21 @@ class Frenet extends Controller {
 	 * @var string
 	 */
 	private const PANEL_URL = 'https://painel.frenet.com.br/';
+
+	/**
+	 * @var string
+	 */
+	private const EVENT_CODE = 'frenet_simulator';
+
+	/**
+	 * @var string
+	 */
+	private const EVENT_TRIGGER = 'catalog/view/product/product/after';
+
+	/**
+	 * @var string
+	 */
+	private const EVENT_DESCRIPTION = 'Frenet shipping simulator on the product page';
 
 	/**
 	 * @var array<int, string>
@@ -70,7 +86,13 @@ class Frenet extends Controller {
 
 		$this->load->model('setting/setting');
 
-		$data['migrated'] = $this->user->hasPermission('modify', self::ROUTE) && $this->migrateLegacySettings();
+		$can_modify = $this->user->hasPermission('modify', self::ROUTE);
+
+		$data['migrated'] = $can_modify && $this->migrateLegacySettings();
+
+		if ($can_modify) {
+			$this->installSimulator();
+		}
 
 		$user_token = 'user_token=' . $this->session->data['user_token'];
 
@@ -202,6 +224,32 @@ class Frenet extends Controller {
 	}
 
 	/**
+	 * Registers the simulator event and creates the table of its limit, when Frenet is installed.
+	 *
+	 * @return void
+	 */
+	public function install(): void {
+		$this->autoloader->register('Frenet', DIR_EXTENSION . 'opencartfrenetv4/system/library/frenet/');
+
+		$this->installSimulator();
+	}
+
+	/**
+	 * Removes the simulator event and the table of its limit, when Frenet is uninstalled.
+	 *
+	 * @return void
+	 */
+	public function uninstall(): void {
+		$this->autoloader->register('Frenet', DIR_EXTENSION . 'opencartfrenetv4/system/library/frenet/');
+
+		$this->load->model('setting/event');
+
+		$this->model_setting_event->deleteEventByCode(self::EVENT_CODE);
+
+		RateLimit::dropTable($this->db, DB_PREFIX);
+	}
+
+	/**
 	 * Warnings above the form, reloaded by the form after each save so they follow what was saved.
 	 *
 	 * @return void
@@ -303,6 +351,27 @@ class Frenet extends Controller {
 			'shipping_frenet_minimum_length' => ['entry_minimum_length', FrenetConfig::DEFAULT_LENGTH],
 			'shipping_frenet_default_weight' => ['entry_default_weight', FrenetConfig::DEFAULT_WEIGHT]
 		];
+	}
+
+	/**
+	 * Registers the simulator event with the route separator of this release and creates the table of the limit per IP.
+	 *
+	 * @return void
+	 */
+	private function installSimulator(): void {
+		$platform = new Platform(VERSION);
+		$action = $platform->getEventAction(self::ROUTE, 'addSimulator');
+
+		$this->load->model('setting/event');
+
+		$event = $this->model_setting_event->getEventByCode(self::EVENT_CODE);
+
+		if (!$event || $event['trigger'] !== self::EVENT_TRIGGER || $event['action'] !== $action) {
+			$this->model_setting_event->deleteEventByCode(self::EVENT_CODE);
+			$this->model_setting_event->addEvent(...$platform->getEventArguments(self::EVENT_CODE, self::EVENT_DESCRIPTION, self::EVENT_TRIGGER, $action));
+		}
+
+		RateLimit::createTable($this->db, DB_PREFIX);
 	}
 
 	/**
