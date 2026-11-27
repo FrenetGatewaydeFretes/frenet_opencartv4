@@ -18,16 +18,11 @@
     {% if migrated %}
     <div class="alert alert-info alert-dismissible" id="frenet-migrated"><i class="fa-solid fa-circle-info"></i> {{ text_migrated }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
     {% endif %}
-    {% if not token_saved %}
-    <div class="alert alert-warning" id="frenet-token-required"><i class="fa-solid fa-triangle-exclamation"></i> {{ text_token_required }} <a href="{{ panel_url|escape }}" target="_blank" rel="noopener noreferrer">{{ text_panel }}</a></div>
-    {% endif %}
-    {% if geo_zone_missing %}
-    <div class="alert alert-warning" id="frenet-geo-zone-missing"><i class="fa-solid fa-triangle-exclamation"></i> {{ text_geo_zone_missing }}</div>
-    {% endif %}
+    <div id="frenet-alert">{{ alert }}</div>
     <div class="card">
       <div class="card-header"><i class="fa-solid fa-pencil"></i> {{ text_edit }}</div>
       <div class="card-body">
-        <form id="form-frenet" action="{{ save }}" method="post" data-oc-toggle="ajax">
+        <form id="form-frenet" action="{{ save }}" method="post" data-oc-toggle="ajax" data-oc-load="{{ alert_url }}" data-oc-target="#frenet-alert">
           <div class="row mb-3 required">
             <label for="input-token" class="col-sm-2 col-form-label">{{ entry_token }}</label>
             <div class="col-sm-10">

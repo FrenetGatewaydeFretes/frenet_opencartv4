@@ -78,14 +78,17 @@ class Frenet extends Controller {
 			['text' => $this->language->get('heading_title'), 'href' => $this->url->link(self::ROUTE, $user_token)]
 		];
 
-		$data['save'] = $this->url->link((new Platform(VERSION))->getRoute(self::ROUTE, 'save'), $user_token);
+		$platform = new Platform(VERSION);
+
+		$data['save'] = $this->url->link($platform->getRoute(self::ROUTE, 'save'), $user_token);
+		$data['alert_url'] = $this->url->link($platform->getRoute(self::ROUTE, 'alert'), $user_token);
 		$data['back'] = $this->url->link('marketplace/extension', $user_token . '&type=shipping');
 
 		$config = new FrenetConfig($this->config);
 		$units = new UnitClass($this->db, DB_PREFIX);
 
+		$data['alert'] = $this->load->view(self::ROUTE . '_alert', $this->getAlerts($config->getGeoZoneId()));
 		$data['token_saved'] = $this->model_setting_setting->getValue('shipping_frenet_token') !== '';
-		$data['panel_url'] = self::PANEL_URL;
 		$data['shipping_frenet_status'] = $config->isEnabled();
 		$data['shipping_frenet_postcode'] = Postcode::format($config->getOriginPostcode()) ?? $config->getOriginPostcode();
 		$data['shipping_frenet_delivery_time'] = $config->isDeliveryTimeShown();
@@ -113,7 +116,6 @@ class Frenet extends Controller {
 		$data['length_classes'] = $this->model_localisation_length_class->getLengthClasses();
 		$data['tax_classes'] = $this->model_localisation_tax_class->getTaxClasses();
 		$data['geo_zones'] = $this->model_localisation_geo_zone->getGeoZones();
-		$data['geo_zone_missing'] = $config->getGeoZoneId() !== 0 && !in_array($config->getGeoZoneId(), array_map('intval', array_column($data['geo_zones'], 'geo_zone_id')), true);
 
 		$data['timeout_min'] = FrenetConfig::TIMEOUT_MIN;
 		$data['timeout_max'] = FrenetConfig::TIMEOUT_MAX;
@@ -187,6 +189,37 @@ class Frenet extends Controller {
 
 		$this->response->addHeader('Content-Type: application/json');
 		$this->response->setOutput((string)json_encode($json));
+	}
+
+	/**
+	 * Warnings above the form, reloaded by the form after each save so they follow what was saved.
+	 *
+	 * @return void
+	 */
+	public function alert(): void {
+		$this->autoloader->register('Frenet', DIR_EXTENSION . 'opencartfrenetv4/system/library/frenet/');
+
+		$this->load->language(self::ROUTE);
+		$this->load->model('setting/setting');
+
+		$this->response->setOutput($this->load->view(self::ROUTE . '_alert', $this->getAlerts((int)$this->model_setting_setting->getValue('shipping_frenet_geo_zone_id'))));
+	}
+
+	/**
+	 * Data of the warnings: the token is missing, or the geo zone chosen for Frenet was deleted.
+	 *
+	 * @param int $geo_zone_id
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function getAlerts(int $geo_zone_id): array {
+		$this->load->model('localisation/geo_zone');
+
+		return [
+			'token_required'   => $this->model_setting_setting->getValue('shipping_frenet_token') === '',
+			'geo_zone_missing' => $geo_zone_id > 0 && !$this->model_localisation_geo_zone->getGeoZone($geo_zone_id),
+			'panel_url'        => self::PANEL_URL
+		];
 	}
 
 	/**
