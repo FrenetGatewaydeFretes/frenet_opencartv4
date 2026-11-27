@@ -92,7 +92,7 @@ class Frenet extends Controller {
 		$data['shipping_frenet_status'] = $config->isEnabled();
 		$data['shipping_frenet_postcode'] = Postcode::format($config->getOriginPostcode()) ?? $config->getOriginPostcode();
 		$data['shipping_frenet_delivery_time'] = $config->isDeliveryTimeShown();
-		$data['shipping_frenet_msg_prazo'] = $config->getDeliveryTimeMessage();
+		$data['shipping_frenet_msg_prazo'] = html_entity_decode($config->getDeliveryTimeMessage(), ENT_COMPAT, 'UTF-8');
 		$data['shipping_frenet_additional_days'] = $config->getAdditionalDays();
 		$data['shipping_frenet_weight_class_id'] = $config->getWeightClassId() ?: $units->findWeightClassId();
 		$data['shipping_frenet_length_class_id'] = $config->getLengthClassId() ?: $units->findLengthClassId();
