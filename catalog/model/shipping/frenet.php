@@ -76,7 +76,7 @@ class Frenet extends Model {
 			return $this->getMethod($config, [], $this->language->get('error_no_services'));
 		}
 
-		return $this->getMethod($config, $this->getOptions($result->getServices(), $config->getDeliveryTimeMessage()), false);
+		return $this->getMethod($config, $this->getOptions($result->getServices(), $config->getDeliveryTimeMessage(), $config->getAdditionalDays()), false);
 	}
 
 	/**
@@ -106,14 +106,15 @@ class Frenet extends Model {
 	 *
 	 * @param array<int, Service> $services
 	 * @param string              $template
+	 * @param int                 $additional_days
 	 *
 	 * @return array<string, array<string, mixed>>
 	 */
-	private function getOptions(array $services, string $template): array {
+	private function getOptions(array $services, string $template, int $additional_days): array {
 		$options = [];
 
 		foreach ($services as $service) {
-			$name = $service->getTitle($template);
+			$name = $service->getTitle($template, $additional_days);
 
 			$options[$service->getCode()] = [
 				'code'         => 'frenet.' . $service->getCode(),
