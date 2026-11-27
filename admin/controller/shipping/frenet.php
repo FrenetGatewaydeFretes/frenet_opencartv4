@@ -2,15 +2,18 @@
 namespace Opencart\Admin\Controller\Extension\Opencartfrenetv4\Shipping;
 
 use Frenet\Config as FrenetConfig;
+use Frenet\Log as FrenetLog;
 use Frenet\Module;
 use Frenet\Platform;
 use Frenet\Postcode;
 use Frenet\Simulator\RateLimit;
 use Frenet\UnitClass;
 use Opencart\System\Engine\Controller;
+use Opencart\System\Library\Log as CoreLog;
+use Throwable;
 
 /**
- * Frenet shipping settings: the form, its AJAX save with validation, the move of the settings of version 1.0.0 and the simulator event.
+ * Frenet shipping settings: the form, its AJAX save, the move of the settings of version 1.0.0 and the simulator event.
  */
 class Frenet extends Controller {
 	/**
@@ -246,7 +249,11 @@ class Frenet extends Controller {
 
 		$this->model_setting_event->deleteEventByCode(self::EVENT_CODE);
 
-		RateLimit::dropTable($this->db, DB_PREFIX);
+		try {
+			RateLimit::dropTable($this->db, DB_PREFIX);
+		} catch (Throwable $exception) {
+			(new FrenetLog(new CoreLog(FrenetLog::FILENAME), false))->error('Simulator limit table could not be removed: ' . $exception->getMessage());
+		}
 	}
 
 	/**
@@ -371,7 +378,11 @@ class Frenet extends Controller {
 			$this->model_setting_event->addEvent(...$platform->getEventArguments(self::EVENT_CODE, self::EVENT_DESCRIPTION, self::EVENT_TRIGGER, $action));
 		}
 
-		RateLimit::createTable($this->db, DB_PREFIX);
+		try {
+			RateLimit::createTable($this->db, DB_PREFIX);
+		} catch (Throwable $exception) {
+			(new FrenetLog(new CoreLog(FrenetLog::FILENAME), false))->error('Simulator limit table could not be created, the simulator quotes without the limit until it can: ' . $exception->getMessage());
+		}
 	}
 
 	/**
