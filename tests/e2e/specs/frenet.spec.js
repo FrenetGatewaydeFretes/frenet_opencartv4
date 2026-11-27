@@ -126,6 +126,23 @@ const checkSettings = async (page, token, saved_token, testInfo) => {
 	await page.screenshot({ path: testInfo.outputPath('settings.png'), fullPage: true });
 };
 
+const saveDefaultMinimums = async (page, token, testInfo) => {
+	await openSettings(page, token);
+	await page.locator('#input-minimum-height').fill('0');
+	await page.locator('#input-default-weight').fill('0');
+
+	const saved = page.waitForResponse((response) => response.request().method() === 'POST' && /route=extension(\/|%2F)opencartfrenetv4(\/|%2F)shipping(\/|%2F)frenet/.test(response.url()));
+
+	await page.locator('button[form="form-frenet"]').click();
+	await saved;
+	await openSettings(page, token);
+	await expect(page.locator('#input-minimum-height')).toHaveValue('2');
+	await expect(page.locator('#input-default-weight')).toHaveValue('1');
+	await expect(page.locator('#input-minimum-width')).toHaveValue('11');
+	await expect(page.locator('#input-token')).toHaveValue('single-service');
+	await page.screenshot({ path: testInfo.outputPath('settings-defaults.png'), fullPage: true });
+};
+
 const startCheckout = async (page, products = [[PRODUCT_ID, 1]], coupon = '') => {
 	await page.goto('index.php?route=account/login');
 	await page.locator('#input-email').fill(CUSTOMER.email);
@@ -275,6 +292,7 @@ test('@install installs the package, shows the version, quotes a single service 
 	});
 	await test.step('Extensions > Extensions > Shipping installs Frenet', () => installShipping(page, token));
 	await test.step('The settings show the token and the module version', () => checkSettings(page, token, 'single-service', testInfo));
+	await test.step('A minimum height and a default weight saved as zero go back to the defaults', () => saveDefaultMinimums(page, token, testInfo));
 	await test.step('Checkout offers the only Frenet service and places the order', async () => {
 		name = await checkout(page, 1, testInfo);
 	});
