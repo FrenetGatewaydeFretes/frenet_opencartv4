@@ -47,6 +47,43 @@ namespace Opencart\System\Engine {
 	}
 }
 
+namespace Opencart\System\Engine {
+	if (!class_exists(Registry::class, false)) {
+		/**
+		 * Same public API as the OpenCart 4 core Registry.
+		 */
+		class Registry {
+			/**
+			 * @var array<string, object>
+			 */
+			private array $data = [];
+
+			/**
+			 * Object kept under the key, or null.
+			 *
+			 * @param string $key
+			 *
+			 * @return object|null
+			 */
+			public function get(string $key): ?object {
+				return $this->data[$key] ?? null;
+			}
+
+			/**
+			 * Keeps an object under the key.
+			 *
+			 * @param string $key
+			 * @param object $value
+			 *
+			 * @return void
+			 */
+			public function set(string $key, object $value): void {
+				$this->data[$key] = $value;
+			}
+		}
+	}
+}
+
 namespace Opencart\System\Library {
 	if (!class_exists(Log::class, false)) {
 		/**
@@ -244,6 +281,49 @@ namespace Opencart\System\Library\Cart {
 			 */
 			public function getUnit(int $length_class_id): string {
 				return $this->lengths[$length_class_id]['unit'] ?? '';
+			}
+		}
+	}
+}
+
+namespace Opencart\System\Library\Cart {
+	if (!class_exists(Cart::class, false)) {
+		/**
+		 * Core cart reduced to what the simulator relies on: it clears old carts, then reads the cart table and each product.
+		 */
+		class Cart {
+			private object $db;
+
+			private object $customer;
+
+			public function __construct(\Opencart\System\Engine\Registry $registry) {
+				$this->db = $registry->get('db') ?? new \stdClass();
+				$this->customer = $registry->get('customer') ?? new \stdClass();
+
+				$this->db->query("DELETE FROM `oc_cart` WHERE `customer_id` = '0' AND `date_added` < DATE_SUB(NOW(), INTERVAL 1 HOUR)");
+			}
+
+			/**
+			 * Products of the cart of the customer, each with the columns of its cart row and the product row.
+			 *
+			 * @return array<int, array<string, mixed>>
+			 */
+			public function getProducts(): array {
+				$products = [];
+
+				foreach ($this->db->query("SELECT * FROM `oc_cart` WHERE `customer_id` = '" . (int)$this->customer->getId() . "'")->rows as $cart) {
+					$product = $this->db->query("SELECT * FROM `oc_product` WHERE `product_id` = '" . (int)$cart['product_id'] . "'")->row;
+
+					if (!$product) {
+						$this->db->query("DELETE FROM `oc_cart` WHERE `cart_id` = '" . (int)$cart['cart_id'] . "'");
+
+						continue;
+					}
+
+					$products[] = ['option' => (array)json_decode($cart['option'], true), 'logged' => $this->customer->isLogged()] + $product + $cart;
+				}
+
+				return $products;
 			}
 		}
 	}
