@@ -48,6 +48,8 @@ class Frenet extends Controller {
 		'shipping_frenet_default_weight',
 		'shipping_frenet_timeout',
 		'shipping_frenet_attempts',
+		'shipping_frenet_simulator',
+		'shipping_frenet_simulator_limit',
 		'shipping_frenet_debug',
 		'shipping_frenet_tax_class_id',
 		'shipping_frenet_geo_zone_id',
@@ -102,6 +104,8 @@ class Frenet extends Controller {
 		$data['shipping_frenet_default_weight'] = $this->formatNumber($config->getDefaultWeight());
 		$data['shipping_frenet_timeout'] = $config->getTimeout();
 		$data['shipping_frenet_attempts'] = $config->getAttempts();
+		$data['shipping_frenet_simulator'] = $config->isSimulatorEnabled();
+		$data['shipping_frenet_simulator_limit'] = $config->getSimulatorLimit();
 		$data['shipping_frenet_debug'] = $config->isDebug();
 		$data['shipping_frenet_tax_class_id'] = $config->getTaxClassId();
 		$data['shipping_frenet_geo_zone_id'] = $config->getGeoZoneId();
@@ -161,6 +165,12 @@ class Frenet extends Controller {
 				$json['error']['token'] = $this->language->get('error_token');
 			}
 
+			$simulator_limit = trim((string)($post['shipping_frenet_simulator_limit'] ?? ''));
+
+			if ($simulator_limit !== '' && !ctype_digit($simulator_limit)) {
+				$json['error']['simulator_limit'] = $this->language->get('error_simulator_limit');
+			}
+
 			if ($json) {
 				$json['error']['warning'] = $this->language->get('error_warning');
 			}
@@ -182,7 +192,7 @@ class Frenet extends Controller {
 			$json['success'] = implode(' ', array_merge([$this->language->get('text_success')], $adjusted));
 			$json['shipping_frenet_token'] = '';
 
-			foreach (array_merge(['shipping_frenet_postcode', 'shipping_frenet_additional_days'], array_keys($this->getRanges()), array_keys($this->getMinimums())) as $field) {
+			foreach (array_merge(['shipping_frenet_postcode', 'shipping_frenet_additional_days', 'shipping_frenet_simulator_limit'], array_keys($this->getRanges()), array_keys($this->getMinimums())) as $field) {
 				$json[$field] = $values[$field];
 			}
 		}
@@ -251,6 +261,9 @@ class Frenet extends Controller {
 		}
 
 		$values['shipping_frenet_additional_days'] = (string)$additional_days;
+
+		$simulator_limit = $values['shipping_frenet_simulator_limit'];
+		$values['shipping_frenet_simulator_limit'] = (string)($simulator_limit !== '' ? (int)$simulator_limit : FrenetConfig::SIMULATOR_LIMIT_DEFAULT);
 
 		foreach ($this->getMinimums() as $field => [$label, $default]) {
 			$value = FrenetConfig::parsePositive($values[$field]);

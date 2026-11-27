@@ -33,6 +33,8 @@ $_['entry_minimum_length']        = 'Comprimento mínimo (cm)';
 $_['entry_default_weight']        = 'Peso padrão (kg)';
 $_['entry_timeout']               = 'Tempo limite (segundos)';
 $_['entry_attempts']              = 'Tentativas';
+$_['entry_simulator']             = 'Simulador na página do produto';
+$_['entry_simulator_limit']       = 'Limite de simulações por IP';
 $_['entry_debug']                 = 'Debug';
 $_['entry_sort_order']            = 'Posição';
 
@@ -51,6 +53,8 @@ $_['help_minimum_length']         = 'Menor comprimento enviado à Frenet: produt
 $_['help_default_weight']         = 'Peso enviado à Frenet para o produto cadastrado sem peso. Padrão: 1 kg.';
 $_['help_timeout']                = 'Quanto cada tentativa de cotação espera a Frenet responder, de 2 a 10 segundos.';
 $_['help_attempts']               = 'Quantas vezes a cotação é enviada quando a Frenet não responde ou responde com erro do servidor, de 1 a 3. Token inválido e as outras recusas da Frenet (erros 4xx, exceto 408 e 429) nunca são repetidos.';
+$_['help_simulator']              = 'Mostra na página do produto um campo de CEP que calcula os fretes Frenet do produto, com os preços e prazos do carrinho.';
+$_['help_simulator_limit']        = 'Quantas simulações cada IP pode fazer por minuto. Acima disso, o simulador pede para aguardar e o bloqueio vai para o frenet.log. Use 0 para não limitar.';
 $_['help_debug']                  = 'Grava em frenet.log cada requisição e resposta da cotação, sem o token. Os erros são gravados sempre.';
 
 // Placeholder
@@ -61,3 +65,4 @@ $_['error_permission']            = 'Atenção: você não tem permissão para m
 $_['error_warning']               = 'Atenção: a configuração não foi salva. Corrija os campos destacados.';
 $_['error_postcode']              = 'O CEP de origem precisa ter 8 dígitos, como 01310-100.';
 $_['error_token']                 = 'Informe o token gerado no painel Frenet para habilitar o frete.';
+$_['error_simulator_limit']       = 'O limite aceita só 0 ou números inteiros positivos, como 60.';
