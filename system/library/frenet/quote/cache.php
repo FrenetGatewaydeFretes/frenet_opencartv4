@@ -49,7 +49,7 @@ class Cache {
 	}
 
 	/**
-	 * Keeps the answer for TTL seconds, with the expiry inside the entry because the file cache of 4.0.0.0 reads expired files.
+	 * Keeps the answer for TTL seconds, also inside the entry, because the file cache of 4.0.2.x returns expired files.
 	 *
 	 * @param string $key
 	 * @param string $body
