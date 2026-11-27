@@ -84,6 +84,38 @@ final class ConfigTest extends TestCase {
 		self::assertSame(Config::ATTEMPTS_DEFAULT, $config->getAttempts());
 	}
 
+	public function testReadsTheDeliveryTimeTheTaxClassAndTheGeoZone(): void {
+		$config = $this->createConfig([
+			'shipping_frenet_delivery_time'   => '0',
+			'shipping_frenet_additional_days' => '2',
+			'shipping_frenet_tax_class_id'    => '9',
+			'shipping_frenet_geo_zone_id'     => '4'
+		]);
+
+		self::assertFalse($config->isDeliveryTimeShown());
+		self::assertSame(2, $config->getAdditionalDays());
+		self::assertSame(9, $config->getTaxClassId());
+		self::assertSame(4, $config->getGeoZoneId());
+		self::assertTrue($this->createConfig(['shipping_frenet_delivery_time' => '1'])->isDeliveryTimeShown());
+	}
+
+	public function testShowsTheDeliveryTimeWithoutExtraDaysTaxOrGeoZoneWhenNothingIsSaved(): void {
+		$config = $this->createConfig([]);
+
+		self::assertTrue($config->isDeliveryTimeShown());
+		self::assertSame(0, $config->getAdditionalDays());
+		self::assertSame(0, $config->getTaxClassId());
+		self::assertSame(0, $config->getGeoZoneId());
+	}
+
+	public function testNeverReadsNegativeDaysOrIds(): void {
+		$config = $this->createConfig(['shipping_frenet_additional_days' => '-3', 'shipping_frenet_tax_class_id' => '-1', 'shipping_frenet_geo_zone_id' => 'abc']);
+
+		self::assertSame(0, $config->getAdditionalDays());
+		self::assertSame(0, $config->getTaxClassId());
+		self::assertSame(0, $config->getGeoZoneId());
+	}
+
 	public function testReadsTheUnitClassesTheStoreOwnerMapped(): void {
 		$config = $this->createConfig(['shipping_frenet_weight_class_id' => '5', 'shipping_frenet_length_class_id' => '3']);
 
