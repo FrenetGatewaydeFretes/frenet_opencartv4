@@ -9,6 +9,7 @@ use Frenet\Log as FrenetLog;
 use Frenet\Platform;
 use Frenet\Postcode;
 use Frenet\Quote\Builder;
+use Frenet\Quote\Cache as QuoteCache;
 use Frenet\Quote\Catalog;
 use Frenet\Quote\Service;
 use Frenet\Quote\UnavailableException;
@@ -61,7 +62,7 @@ class Frenet extends Model {
 			$builder = new Builder($config, $this->weight, $this->length, $config->getWeightClassId() ?: $units->findWeightClassId(), $config->getLengthClassId() ?: $units->findLengthClassId(), VERSION);
 			$products = $this->cart->getProducts();
 			$request = $builder->build($address, $products, $this->getCatalog($builder->filterShipped($products), $log), (string)($this->session->data['coupon'] ?? ''));
-			$result = (new Api(new Client(), $log, $config->getToken(), VERSION, $config->getTimeout(), $config->getAttempts()))->quote($request);
+			$result = (new Api(new Client(), new QuoteCache($this->cache), $log, $config->getToken(), VERSION, $config->getTimeout(), $config->getAttempts()))->quote($request);
 		} catch (Throwable $exception) {
 			$context = $exception instanceof UnavailableException ? [] : ['exception' => $exception::class, 'at' => $exception->getFile() . ':' . $exception->getLine()];
 			$context += $request !== null ? ['request' => $request->toArray()] : ['postcode' => $address['postcode'] ?? ''];

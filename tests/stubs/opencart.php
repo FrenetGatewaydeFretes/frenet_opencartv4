@@ -75,6 +75,50 @@ namespace Opencart\System\Library {
 }
 
 namespace Opencart\System\Library {
+	if (!class_exists(Cache::class, false)) {
+		/**
+		 * Same public API as the OpenCart 4 core Cache, keeping the entries and their expiry in memory.
+		 */
+		class Cache {
+			/**
+			 * @var array<string, mixed>
+			 */
+			public array $entries = [];
+
+			/**
+			 * @var array<string, int>
+			 */
+			public array $expires = [];
+
+			/**
+			 * Entry of the key, or an empty array as the file cache answers for a missing key.
+			 *
+			 * @param string $key
+			 *
+			 * @return mixed
+			 */
+			public function get(string $key): mixed {
+				return $this->entries[$key] ?? [];
+			}
+
+			/**
+			 * Keeps the entry and the seconds it was given to live.
+			 *
+			 * @param string $key
+			 * @param mixed  $value
+			 * @param int    $expire
+			 *
+			 * @return void
+			 */
+			public function set(string $key, mixed $value, int $expire = 0): void {
+				$this->entries[$key] = $value;
+				$this->expires[$key] = $expire;
+			}
+		}
+	}
+}
+
+namespace Opencart\System\Library {
 	if (!class_exists(DB::class, false)) {
 		/**
 		 * Same public API as the OpenCart 4 core DB, answering each query from a queue and keeping the SQL it received.

@@ -4,14 +4,16 @@ namespace Frenet;
 use Frenet\Http\Client;
 use Frenet\Http\Exception as HttpException;
 use Frenet\Http\Response;
+use Frenet\Quote\Cache;
 use Frenet\Quote\Exception;
 use Frenet\Quote\Parser;
 use Frenet\Quote\Request;
 use Frenet\Quote\Result;
 use Frenet\Quote\UnavailableException;
+use Throwable;
 
 /**
- * Quotes through the Frenet REST API over HTTPS, retrying failures within the time limit and logging the reason of each one.
+ * Quotes through the Frenet REST API over HTTPS or the cache, retrying failures within the time limit and logging the reason of each one.
  */
 class Api {
 	/**
@@ -24,10 +26,10 @@ class Api {
 	 */
 	private const RETRY_DELAY = 300000;
 
-	public function __construct(private Client $client, private Log $log, private string $token, private string $opencart_version, private int $timeout, private int $attempts, private string $quote_url = self::QUOTE_URL) {}
+	public function __construct(private Client $client, private Cache $cache, private Log $log, private string $token, private string $opencart_version, private int $timeout, private int $attempts, private string $quote_url = self::QUOTE_URL) {}
 
 	/**
-	 * Services the Frenet API offers for the request, retrying a timeout, a connection failure, a 5xx or an unreadable answer; a 4xx other than 408 and 429 is never retried.
+	 * Services for the request from the cache or the API, retrying timeouts, 5xx and unreadable answers but never a refusal.
 	 *
 	 * @param Request $request
 	 *
@@ -41,6 +43,15 @@ class Api {
 
 		if ($body === false) {
 			throw new UnavailableException('Could not encode the quote request: ' . json_last_error_msg());
+		}
+
+		$key = $this->cache->getKey($this->token, $body);
+		$cached = $this->readCache($key);
+
+		if ($cached !== null) {
+			$this->log->debug('Quote served from the cache', ['key' => $key, 'body' => $payload]);
+
+			return $cached;
 		}
 
 		$headers = $this->getHeaders();
@@ -77,11 +88,19 @@ class Api {
 			}
 
 			try {
-				return (new Parser())->parse($response->getBody());
+				$result = (new Parser())->parse($response->getBody());
 			} catch (Exception $exception) {
 				$error = $exception->getMessage();
 				$this->logAttempt($attempt, $attempts, $error);
+
+				continue;
 			}
+
+			if ($result->getServices() !== []) {
+				$this->writeCache($key, $response->getBody());
+			}
+
+			return $result;
 		}
 
 		throw new UnavailableException('The Frenet API gave no usable answer after ' . $attempts . ' attempt(s). Last error: ' . $error);
@@ -99,6 +118,41 @@ class Api {
 			'User-Agent'   => 'Frenet-' . Request::PLATFORM_NAME . '/' . Module::VERSION . ' (OpenCart ' . $this->opencart_version . ')',
 			'token'        => $this->token
 		];
+	}
+
+	/**
+	 * Cached answer, with any cache failure treated as a miss so the quote still reaches the API.
+	 *
+	 * @param string $key
+	 *
+	 * @return Result|null
+	 */
+	private function readCache(string $key): ?Result {
+		try {
+			$body = $this->cache->get($key);
+
+			return $body !== null ? (new Parser())->parse($body) : null;
+		} catch (Throwable $exception) {
+			$this->log->error('Quote cache could not be read, asking the Frenet API: ' . $exception->getMessage());
+
+			return null;
+		}
+	}
+
+	/**
+	 * Stores the answer, logging a cache failure instead of losing a quote the API already answered.
+	 *
+	 * @param string $key
+	 * @param string $body
+	 *
+	 * @return void
+	 */
+	private function writeCache(string $key, string $body): void {
+		try {
+			$this->cache->set($key, $body);
+		} catch (Throwable $exception) {
+			$this->log->error('Quote cache could not be written: ' . $exception->getMessage());
+		}
 	}
 
 	/**

@@ -160,6 +160,11 @@ const saveDefaultMinimums = async (page, token, testInfo) => {
 	await expect(page.locator('#input-minimum-width')).toHaveValue('11');
 };
 
+const openCheckout = async (page) => {
+	await page.goto('index.php?route=checkout/checkout');
+	await expect(page.locator('#input-shipping-address option')).toHaveCount(2);
+};
+
 const startCheckout = async (page, products = [[PRODUCT_ID, 1]], coupon = '') => {
 	await page.goto('index.php?route=account/login');
 	await page.locator('#input-email').fill(CUSTOMER.email);
@@ -175,8 +180,7 @@ const startCheckout = async (page, products = [[PRODUCT_ID, 1]], coupon = '') =>
 
 	if (coupon) await applyCoupon(page, coupon);
 
-	await page.goto('index.php?route=checkout/checkout');
-	await expect(page.locator('#input-shipping-address option')).toHaveCount(2);
+	await openCheckout(page);
 };
 
 const applyCoupon = async (page, coupon) => {
@@ -523,5 +527,39 @@ test('@settings saves the settings by AJAX, validates them and applies the tax, 
 	}
 
 	await page.screenshot({ path: testInfo.outputPath(`checkout-${scenario}.png`), fullPage: true });
+	expect(errors).toEqual([]);
+});
+
+const CACHE_VISITS = { repeat: 2, failure: 3 };
+
+test('@cache quotes the same cart once and quotes it again after a failure', async ({ page }, testInfo) => {
+	const scenario = process.env.E2E_SCENARIO || '';
+	const visits = CACHE_VISITS[scenario];
+
+	test.skip(!scenario, 'no scenario');
+	expect(visits, `unknown scenario ${scenario}`).toBeDefined();
+
+	const errors = watch(page);
+
+	await login(page);
+
+	for (let visit = 1; visit <= visits; visit++) {
+		if (visit === 1) {
+			await startCheckout(page);
+		} else {
+			await openCheckout(page);
+		}
+
+		const block = await showShippingMethods(page);
+
+		await expect(block.others.first()).toBeAttached({ timeout: 60000 });
+
+		if (visit === visits) {
+			await expect(block.frenet.first()).toBeAttached();
+			await expect(block.error).toHaveCount(0);
+		}
+	}
+
+	await page.screenshot({ path: testInfo.outputPath(`checkout-cache-${scenario}.png`), fullPage: true });
 	expect(errors).toEqual([]);
 });
