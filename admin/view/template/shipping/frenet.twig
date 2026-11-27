@@ -75,6 +75,7 @@
             <label class="col-sm-2 col-form-label" for="input-weight-class">{{ entry_weight_class }}</label>
             <div class="col-sm-10">
               <select name="shipping_frenet_weight_class_id" id="input-weight-class" class="form-select">
+                <option value="0">{{ text_select }}</option>
                 {% for weight_class in weight_classes %}
                 <option value="{{ weight_class.weight_class_id }}"{% if weight_class.weight_class_id == shipping_frenet_weight_class_id %} selected="selected"{% endif %}>{{ weight_class.title|escape }}</option>
                 {% endfor %}
@@ -86,6 +87,7 @@
             <label class="col-sm-2 col-form-label" for="input-length-class">{{ entry_length_class }}</label>
             <div class="col-sm-10">
               <select name="shipping_frenet_length_class_id" id="input-length-class" class="form-select">
+                <option value="0">{{ text_select }}</option>
                 {% for length_class in length_classes %}
                 <option value="{{ length_class.length_class_id }}"{% if length_class.length_class_id == shipping_frenet_length_class_id %} selected="selected"{% endif %}>{{ length_class.title|escape }}</option>
                 {% endfor %}
