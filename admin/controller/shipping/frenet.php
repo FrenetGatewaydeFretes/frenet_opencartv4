@@ -3,6 +3,7 @@ namespace Opencart\Admin\Controller\Extension\Opencartfrenetv4\Shipping;
 
 use Frenet\Config as FrenetConfig;
 use Frenet\Module;
+use Frenet\UnitClass;
 
 class Frenet extends \Opencart\System\Engine\Controller {
 	/**
@@ -30,7 +31,7 @@ class Frenet extends \Opencart\System\Engine\Controller {
 		}
 
 		if (($this->request->server['REQUEST_METHOD'] == 'POST') && $this->validate()) {
-			$this->model_setting_setting->editSetting('shipping_frenet', $this->request->post);
+			$this->model_setting_setting->editSetting('shipping_frenet', $this->withDefaultMinimums($this->request->post));
 
 			$this->session->data['success'] = $this->language->get('text_success');
 
@@ -101,15 +102,28 @@ class Frenet extends \Opencart\System\Engine\Controller {
 		}
 
 		$config = new FrenetConfig($this->config);
+		$units = new UnitClass($this->db, DB_PREFIX);
 		$settings = [
-			'shipping_frenet_timeout'  => $config->getTimeout(),
-			'shipping_frenet_attempts' => $config->getAttempts(),
-			'shipping_frenet_debug'    => (int)$config->isDebug()
+			'shipping_frenet_weight_class_id' => $config->getWeightClassId() ?: $units->findWeightClassId(),
+			'shipping_frenet_length_class_id' => $config->getLengthClassId() ?: $units->findLengthClassId(),
+			'shipping_frenet_minimum_height'  => $this->formatNumber($config->getMinimumHeight()),
+			'shipping_frenet_minimum_width'   => $this->formatNumber($config->getMinimumWidth()),
+			'shipping_frenet_minimum_length'  => $this->formatNumber($config->getMinimumLength()),
+			'shipping_frenet_default_weight'  => $this->formatNumber($config->getDefaultWeight()),
+			'shipping_frenet_timeout'         => $config->getTimeout(),
+			'shipping_frenet_attempts'        => $config->getAttempts(),
+			'shipping_frenet_debug'           => (int)$config->isDebug()
 		];
 
 		foreach ($settings as $key => $value) {
 			$data[$key] = $this->request->post[$key] ?? $value;
 		}
+
+		$this->load->model('localisation/weight_class');
+		$this->load->model('localisation/length_class');
+
+		$data['weight_classes'] = $this->model_localisation_weight_class->getWeightClasses();
+		$data['length_classes'] = $this->model_localisation_length_class->getLengthClasses();
 
 		$data['timeout_min'] = FrenetConfig::TIMEOUT_MIN;
 		$data['timeout_max'] = FrenetConfig::TIMEOUT_MAX;
@@ -145,6 +159,39 @@ class Frenet extends \Opencart\System\Engine\Controller {
 		}
 
 		$this->model_setting_setting->editSetting('shipping_frenet', array_diff_key($settings, $legacy));
+	}
+
+	/**
+	 * Settings to save, with the default for each minimum measure or default weight that is not a positive number.
+	 *
+	 * @param array<string, mixed> $settings
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function withDefaultMinimums(array $settings): array {
+		$defaults = [
+			'shipping_frenet_minimum_height' => FrenetConfig::DEFAULT_HEIGHT,
+			'shipping_frenet_minimum_width'  => FrenetConfig::DEFAULT_WIDTH,
+			'shipping_frenet_minimum_length' => FrenetConfig::DEFAULT_LENGTH,
+			'shipping_frenet_default_weight' => FrenetConfig::DEFAULT_WEIGHT
+		];
+
+		foreach ($defaults as $key => $default) {
+			$settings[$key] = $this->formatNumber(FrenetConfig::parsePositive($settings[$key] ?? '') ?? $default);
+		}
+
+		return $settings;
+	}
+
+	/**
+	 * Decimal number for an input, without trailing zeros.
+	 *
+	 * @param float $value
+	 *
+	 * @return string
+	 */
+	private function formatNumber(float $value): string {
+		return rtrim(rtrim(number_format($value, 6, '.', ''), '0'), '.');
 	}
 
 	protected function validate() {

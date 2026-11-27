@@ -5,10 +5,13 @@ use Frenet\Api;
 use Frenet\Config as FrenetConfig;
 use Frenet\Http\Client;
 use Frenet\Log as FrenetLog;
-use Frenet\Quote\Item;
-use Frenet\Quote\Request;
+use Frenet\Platform;
+use Frenet\Postcode;
+use Frenet\Quote\Builder;
+use Frenet\Quote\Catalog;
 use Frenet\Quote\Service;
 use Frenet\Quote\UnavailableException;
+use Frenet\UnitClass;
 use Opencart\System\Engine\Model;
 use Opencart\System\Library\Log as CoreLog;
 use Throwable;
@@ -38,10 +41,21 @@ class Frenet extends Model {
 
 		$this->load->language('extension/opencartfrenetv4/shipping/frenet');
 
+		$address['iso_code_2'] = $this->getCountryCode($address);
+
+		if (!Postcode::isQuotable((string)($address['postcode'] ?? ''), $address['iso_code_2'])) {
+			$log->debug('Quote skipped: the address has no valid postcode', ['postcode' => $address['postcode'] ?? '', 'country' => $address['iso_code_2']]);
+
+			return $this->getMethod($config, [], $this->language->get('error_postcode'));
+		}
+
 		$request = null;
 
 		try {
-			$request = $this->createRequest($config, $address);
+			$units = new UnitClass($this->db, DB_PREFIX);
+			$builder = new Builder($config, $this->weight, $this->length, $config->getWeightClassId() ?: $units->findWeightClassId(), $config->getLengthClassId() ?: $units->findLengthClassId(), VERSION);
+			$products = $this->cart->getProducts();
+			$request = $builder->build($address, $products, $this->getCatalog($builder->filterShipped($products), $log), (string)($this->session->data['coupon'] ?? ''));
 			$result = (new Api(new Client(), $log, $config->getToken(), VERSION, $config->getTimeout(), $config->getAttempts()))->quote($request);
 		} catch (Throwable $exception) {
 			$context = $exception instanceof UnavailableException ? [] : ['exception' => $exception::class, 'at' => $exception->getFile() . ':' . $exception->getLine()];
@@ -115,67 +129,41 @@ class Frenet extends Model {
 	}
 
 	/**
-	 * Quote request for the products in the cart and the shipping address.
+	 * SKU and categories of the shipped products, or none when they cannot be read, so the quote goes with the model as SKU.
 	 *
-	 * @param FrenetConfig         $config
+	 * @param array<int|string, array<string, mixed>> $products
+	 * @param FrenetLog                               $log
+	 *
+	 * @return array<int, array{sku: string, category: string}>
+	 */
+	private function getCatalog(array $products, FrenetLog $log): array {
+		try {
+			return (new Catalog($this->db, DB_PREFIX, (int)$this->config->get('config_language_id'), (int)$this->config->get('config_store_id'), (new Platform(VERSION))->hasSkuInProductCode()))->getProducts(array_column($products, 'product_id'));
+		} catch (Throwable $exception) {
+			$log->error('SKU and categories could not be read, quoting with the model only: ' . $exception->getMessage());
+
+			return [];
+		}
+	}
+
+	/**
+	 * ISO code of the address country, read by its id when the address does not bring it, or empty when it has none.
+	 *
 	 * @param array<string, mixed> $address
 	 *
-	 * @return Request
+	 * @return string
 	 */
-	private function createRequest(FrenetConfig $config, array $address): Request {
-		$this->load->model('localisation/country');
+	private function getCountryCode(array $address): string {
+		$code = trim((string)($address['iso_code_2'] ?? ''));
 
-		$country = $this->model_localisation_country->getCountry((int)($address['country_id'] ?? 0));
-		$items = [];
-
-		foreach ($this->cart->getProducts() as $product) {
-			$quantity = max(1, (int)$product['quantity']);
-
-			$items[] = new Item(
-				$this->getWeightInKg((int)$product['weight_class_id'], (float)$product['weight']) / $quantity,
-				$this->getLengthInCm((int)$product['length_class_id'], (float)$product['length']),
-				$this->getLengthInCm((int)$product['length_class_id'], (float)$product['height']),
-				$this->getLengthInCm((int)$product['length_class_id'], (float)$product['width']),
-				$quantity
-			);
+		if ($code !== '' || empty($address['country_id'])) {
+			return $code;
 		}
 
-		return new Request(
-			$config->getOriginPostcode(),
-			(string)preg_replace('/\D/', '', (string)($address['postcode'] ?? '')),
-			(string)($country['iso_code_2'] ?? 'BR'),
-			(float)$this->cart->getSubTotal(),
-			(string)($this->session->data['coupon'] ?? ''),
-			$items,
-			VERSION
-		);
-	}
+		$this->load->model('localisation/country');
 
-	/**
-	 * Weight in kilograms, converting only grams as version 1.0.0 did.
-	 *
-	 * @param int   $weight_class_id
-	 * @param float $weight
-	 *
-	 * @return float
-	 */
-	private function getWeightInKg(int $weight_class_id, float $weight): float {
-		$query = $this->db->query("SELECT `wcd`.`unit` FROM `" . DB_PREFIX . "weight_class_description` `wcd` WHERE `wcd`.`weight_class_id` = '" . $weight_class_id . "' AND `wcd`.`language_id` = '" . (int)$this->config->get('config_language_id') . "'");
+		$country = $this->model_localisation_country->getCountry((int)$address['country_id']);
 
-		return ($query->row['unit'] ?? '') === 'g' ? $weight / 1000 : $weight;
-	}
-
-	/**
-	 * Measure in centimetres, converting only millimetres as version 1.0.0 did.
-	 *
-	 * @param int   $length_class_id
-	 * @param float $length
-	 *
-	 * @return float
-	 */
-	private function getLengthInCm(int $length_class_id, float $length): float {
-		$query = $this->db->query("SELECT `lcd`.`unit` FROM `" . DB_PREFIX . "length_class_description` `lcd` WHERE `lcd`.`length_class_id` = '" . $length_class_id . "' AND `lcd`.`language_id` = '" . (int)$this->config->get('config_language_id') . "'");
-
-		return ($query->row['unit'] ?? '') === 'mm' ? $length / 10 : $length;
+		return trim((string)($country['iso_code_2'] ?? ''));
 	}
 }

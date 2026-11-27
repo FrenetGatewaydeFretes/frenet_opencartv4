@@ -49,7 +49,7 @@ final class PlatformTest extends TestCase {
 	#[TestWith(['4.0.0.0', true, false])]
 	#[TestWith(['4.0.2.3', true, false])]
 	#[TestWith(['4.1.0.0', false, false])]
-	#[TestWith(['4.1.0.3', false, false])]
+	#[TestWith(['4.1.0.3', false, true])]
 	#[TestWith(['4.1.0.4', false, true])]
 	public function testKnowsWherePromotionsAndSkuLive(string $version, bool $special_table, bool $sku_in_code): void {
 		$platform = new Platform($version);

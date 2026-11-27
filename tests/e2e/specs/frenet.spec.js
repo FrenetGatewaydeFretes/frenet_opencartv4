@@ -9,14 +9,37 @@ const CUSTOMER = { email: 'e2e@example.com', password: 'e2e-password' };
 const PRODUCT_ID = 40;
 const UNAVAILABLE = 'Frenet shipping is unavailable right now. Choose another delivery option or try again in a moment.';
 const NO_SERVICES = 'No Frenet delivery option serves this address.';
+const POSTCODE = 'Enter a valid postcode to see the Frenet delivery options.';
+const REQUESTS = path.join(__dirname, '..', '.work', 'log', 'requests.jsonl');
 const SCENARIOS = {
 	slow: { error: UNAVAILABLE, limit: 2 * 2000 + 300 + 1000 },
 	'status-503': { error: UNAVAILABLE },
 	'status-401': { error: UNAVAILABLE },
 	empty: { error: NO_SERVICES },
 	'with-errors': { names: [/^SEDEX - 3 dia\(s\) - /, /^Jadlog Package - /] },
-	broken: { error: UNAVAILABLE }
+	broken: { error: UNAVAILABLE },
+	postcode: { error: POSTCODE, quotes: 0 }
 };
+const item = (values) => ({ Weight: 1, Length: 16, Height: 2, Width: 11, Diameter: 0, SKU: '', Category: '', isFragile: false, Quantity: 1, ...values });
+const ITEMS = {
+	mixed: {
+		products: [[1001, 2], [1002, 1]],
+		coupon: 'FRENET10',
+		invoice: 180,
+		items: [item({ Weight: 0.3, Length: 30, Height: 2, Width: 20, SKU: 'CAM-AZ-M', Category: 'Desktops|Phones & PDAs', Quantity: 2 })]
+	},
+	units: {
+		products: [[1003, 1], [1004, 1], [1005, 1]],
+		coupon: '',
+		invoice: 60,
+		items: [
+			item({ Weight: 0.907194, Length: 20.32, Height: 10.16, Width: 15.24, SKU: 'E2E-LB-IN' }),
+			item({ Weight: 0.453592, Length: 20, Height: 5, Width: 12, SKU: 'E2E-OZ-MM' }),
+			item({ Weight: 1, Length: 16, Height: 2, Width: 11, SKU: 'E2E-SEM-MEDIDAS' })
+		]
+	}
+};
+const readRequests = () => (fs.existsSync(REQUESTS) ? fs.readFileSync(REQUESTS, 'utf8').split('\n').filter((line) => line.trim() !== '').map((line) => JSON.parse(line)) : []);
 const route = (path, method) => new RegExp(`route=${path}(\\||%7C|\\.)${method}`, 'i');
 
 const watch = (page) => {
@@ -94,22 +117,60 @@ const checkSettings = async (page, token, saved_token, testInfo) => {
 	await expect(page.locator('#input-timeout')).toHaveValue('5');
 	await expect(page.locator('#input-attempts')).toHaveValue('3');
 	await expect(page.locator('#input-debug')).toHaveValue('0');
+	await expect(page.locator('#input-weight-class option:checked')).toHaveText(/Kilogram/);
+	await expect(page.locator('#input-length-class option:checked')).toHaveText(/Centimeter/);
+	await expect(page.locator('#input-minimum-height')).toHaveValue('2');
+	await expect(page.locator('#input-minimum-width')).toHaveValue('11');
+	await expect(page.locator('#input-minimum-length')).toHaveValue('16');
+	await expect(page.locator('#input-default-weight')).toHaveValue('1');
 	await page.screenshot({ path: testInfo.outputPath('settings.png'), fullPage: true });
 };
 
-const startCheckout = async (page) => {
+const saveDefaultMinimums = async (page, token, testInfo) => {
+	await openSettings(page, token);
+	await page.locator('#input-minimum-height').fill('0');
+	await page.locator('#input-default-weight').fill('0');
+
+	const saved = page.waitForResponse((response) => response.request().method() === 'POST' && /route=extension(\/|%2F)opencartfrenetv4(\/|%2F)shipping(\/|%2F)frenet/.test(response.url()));
+
+	await page.locator('button[form="form-frenet"]').click();
+	await saved;
+	await openSettings(page, token);
+	await expect(page.locator('#input-minimum-height')).toHaveValue('2');
+	await expect(page.locator('#input-default-weight')).toHaveValue('1');
+	await expect(page.locator('#input-minimum-width')).toHaveValue('11');
+	await expect(page.locator('#input-token')).toHaveValue('single-service');
+	await page.screenshot({ path: testInfo.outputPath('settings-defaults.png'), fullPage: true });
+};
+
+const startCheckout = async (page, products = [[PRODUCT_ID, 1]], coupon = '') => {
 	await page.goto('index.php?route=account/login');
 	await page.locator('#input-email').fill(CUSTOMER.email);
 	await page.locator('#input-password').fill(CUSTOMER.password);
 	await page.locator('#form-login button[type=submit]').click();
 	await expect(page).toHaveURL(/account\/account/);
 
-	const added = await page.request.post('index.php?route=checkout/cart|add', { form: { product_id: String(PRODUCT_ID), quantity: '1' } });
+	for (const [product_id, quantity] of products) {
+		const added = await page.request.post('index.php?route=checkout/cart|add', { form: { product_id: String(product_id), quantity: String(quantity) } });
 
-	expect(added.ok()).toBeTruthy();
+		expect(added.ok()).toBeTruthy();
+	}
+
+	if (coupon) await applyCoupon(page, coupon);
 
 	await page.goto('index.php?route=checkout/checkout');
 	await expect(page.locator('#input-shipping-address option')).toHaveCount(2);
+};
+
+const applyCoupon = async (page, coupon) => {
+	for (const extension of ['extension/opencart/checkout/coupon', 'extension/opencart/total/coupon']) {
+		const response = await page.request.post(`index.php?route=${extension}|save`, { form: { coupon } });
+		const json = await response.json().catch(() => ({}));
+
+		if (json.success) return;
+	}
+
+	throw new Error(`the coupon ${coupon} was not applied`);
 };
 
 const showShippingMethods = async (page) => {
@@ -231,6 +292,7 @@ test('@install installs the package, shows the version, quotes a single service 
 	});
 	await test.step('Extensions > Extensions > Shipping installs Frenet', () => installShipping(page, token));
 	await test.step('The settings show the token and the module version', () => checkSettings(page, token, 'single-service', testInfo));
+	await test.step('A minimum height and a default weight saved as zero go back to the defaults', () => saveDefaultMinimums(page, token, testInfo));
 	await test.step('Checkout offers the only Frenet service and places the order', async () => {
 		name = await checkout(page, 1, testInfo);
 	});
@@ -276,6 +338,7 @@ test('@block shows in the Frenet block of the checkout what the Frenet API answe
 	expect(expected, `unknown scenario ${scenario}`).toBeDefined();
 
 	const errors = watch(page);
+	const sent = readRequests().length;
 
 	await login(page);
 	await startCheckout(page);
@@ -296,6 +359,7 @@ test('@block shows in the Frenet block of the checkout what the Frenet API answe
 	}
 
 	if (expected.limit) expect(block.milliseconds).toBeLessThan(expected.limit);
+	if ('quotes' in expected) expect(readRequests().length - sent).toBe(expected.quotes);
 
 	await expect(block.others.first()).toBeAttached();
 	await page.screenshot({ path: testInfo.outputPath(`checkout-${scenario}.png`), fullPage: true });
@@ -307,5 +371,35 @@ test('@block shows in the Frenet block of the checkout what the Frenet API answe
 		milliseconds: block.milliseconds
 	}, null, 2));
 
+	expect(errors).toEqual([]);
+});
+
+test('@items sends to Frenet the shipped items of the cart in kilograms and centimetres, with the SKU, the categories and the declared value', async ({ page }, testInfo) => {
+	const scenario = process.env.E2E_SCENARIO || '';
+	const expected = ITEMS[scenario];
+
+	test.skip(!scenario, 'no scenario');
+	expect(expected, `unknown scenario ${scenario}`).toBeDefined();
+
+	const errors = watch(page);
+	const sent = readRequests().length;
+
+	await login(page);
+	await startCheckout(page, expected.products, expected.coupon);
+
+	const block = await showShippingMethods(page);
+
+	await expect(block.frenet).toHaveCount(1, { timeout: 60000 });
+	await expect.poll(() => readRequests().length).toBeGreaterThan(sent);
+
+	const body = readRequests().at(-1).body;
+
+	await page.screenshot({ path: testInfo.outputPath(`checkout-${scenario}.png`), fullPage: true });
+	await fs.promises.writeFile(testInfo.outputPath(`quote-${scenario}.json`), JSON.stringify(body, null, 2));
+
+	expect(body.ShippingItemArray).toEqual(expected.items);
+	expect(body.ShipmentInvoiceValue).toBe(expected.invoice);
+	expect(body.Coupom).toBe(expected.coupon);
+	expect(body.RecipientCEP).toBe('20040020');
 	expect(errors).toEqual([]);
 });

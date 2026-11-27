@@ -167,6 +167,6 @@ final class ApiTest extends TestCase {
 	 * @return Request
 	 */
 	private function createRequest(): Request {
-		return new Request('01310100', '20040020', 'BR', 100.0, '', [new Item(1.0, 16.0, 2.0, 11.0, 1)], '4.1.0.4');
+		return new Request('01310100', '20040020', 'BR', 100.0, '', [new Item(1.0, 16.0, 2.0, 11.0, 1, 'product 11', '')], '4.1.0.4');
 	}
 }

@@ -44,6 +44,42 @@ store_log() {
 	dc exec -T web sh -c 'cat "$(php -r "require \"/var/www/html/config.php\"; echo DIR_LOGS;")$1" 2>/dev/null' sh "$1"
 }
 
+add_product() {
+	sql "SET SESSION sql_mode = 'NO_ENGINE_SUBSTITUTION';
+		CREATE TEMPORARY TABLE e2e_product AS SELECT * FROM oc_product WHERE product_id = 40;
+		UPDATE e2e_product SET product_id = $1, model = '$2', price = $3, shipping = $4, quantity = 100, minimum = 1, subtract = 0, status = 1,
+			weight = $5, weight_class_id = (SELECT weight_class_id FROM oc_weight_class_description WHERE unit = '$6' LIMIT 1),
+			length = $7, height = $8, width = $9, length_class_id = (SELECT length_class_id FROM oc_length_class_description WHERE unit = '${10}' LIMIT 1);
+		INSERT INTO oc_product SELECT * FROM e2e_product;
+		CREATE TEMPORARY TABLE e2e_description AS SELECT * FROM oc_product_description WHERE product_id = 40;
+		UPDATE e2e_description SET product_id = $1, name = '$2';
+		INSERT INTO oc_product_description SELECT * FROM e2e_description;
+		INSERT INTO oc_product_to_store (product_id, store_id) VALUES ($1, 0);"
+}
+
+add_products() {
+	add_product 1001 'Camiseta azul' 100 1 300 g 30 2 20 cm
+	add_product 1002 'E-book' 50 0 0 kg 0 0 0 cm
+	add_product 1003 'E2E-LB-IN' 30 1 2 lb 8 4 6 in
+	add_product 1004 'E2E-OZ-MM' 20 1 16 oz 200 50 120 mm
+	add_product 1005 'E2E-SEM-MEDIDAS' 10 1 0 kg 0 0 0 cm
+
+	if [ "$(sql "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'opencart' AND TABLE_NAME = 'oc_product_code'")" = 1 ]; then
+		sql "INSERT INTO oc_product_code (product_id, code, value) VALUES (1001, 'SKU', 'CAM-AZ-M')"
+	else
+		sql "UPDATE oc_product SET sku = 'CAM-AZ-M' WHERE product_id = 1001"
+	fi
+
+	if [ "$(sql "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'opencart' AND TABLE_NAME = 'oc_product_special'")" = 1 ]; then
+		sql "SET SESSION sql_mode = 'NO_ENGINE_SUBSTITUTION'; INSERT INTO oc_product_special SET product_id = 1001, customer_group_id = 1, priority = 1, price = 90, date_start = '0000-00-00', date_end = '0000-00-00'"
+	else
+		sql "SET SESSION sql_mode = 'NO_ENGINE_SUBSTITUTION'; INSERT INTO oc_product_discount SET product_id = 1001, customer_group_id = 1, quantity = 1, priority = 1, price = 90, type = 'F', special = 1, date_start = '0000-00-00', date_end = '0000-00-00'"
+	fi
+
+	sql "INSERT INTO oc_product_to_category (product_id, category_id) VALUES (1001, 20), (1001, 24);
+		INSERT INTO oc_coupon SET name = 'Frenet 10%', code = 'FRENET10', type = 'P', discount = 10, logged = 0, shipping = 0, total = 0, date_start = '2020-01-01', date_end = '2099-12-31', uses_total = 100, uses_customer = 100, status = 1, date_added = NOW()"
+}
+
 keep_results() {
 	mkdir -p "$ARTIFACTS/shots"
 	find "$DIR/test-results" -type f \( -name '*.png' -o -name '*.json' \) -exec cp {} "$ARTIFACTS/shots/" \; 2> /dev/null || true
@@ -207,6 +243,22 @@ else
 	grep -q 'Quote returned no service: Nenhuma transportadora disponível' <<< "$frenet_log" || fail "frenet.log does not have the message of the quote without services"
 	grep -q 'Services with an error were left out.*Erro: Peso excedido.' <<< "$frenet_log" || fail "frenet.log does not have the Msg of the service with an error"
 	grep -qE 'Quote failed: Class "Frenet\\Quote\\Parser" not found \{"exception":"Error","at":"[^"]+/system/library/frenet/api\.php:[0-9]+","request":' <<< "$frenet_log" || fail "frenet.log does not have the unexpected error of the quote with its class, place and request"
+
+	echo "Adding a shirt on sale, an e-book without shipping, products in lb and inches, in oz and millimetres and without measures, and a 10% coupon"
+	add_products
+
+	for scenario in mixed units; do
+		echo "Running Playwright $PLAYWRIGHT_VERSION: quote of the $scenario cart"
+		sql "DELETE FROM oc_cart"
+		E2E_SCENARIO=$scenario playwright @items
+	done
+
+	echo "Running Playwright $PLAYWRIGHT_VERSION: Frenet block with a postcode of 4 digits"
+	sql "DELETE FROM oc_cart; UPDATE oc_address SET postcode = '2004'"
+	E2E_SCENARIO=postcode playwright @block
+	sql "UPDATE oc_address SET postcode = '20040-020'"
+	frenet_log=$(store_log frenet.log)
+	! grep -q 'SKU and categories could not be read' <<< "$frenet_log" || fail "the SKU and categories of the cart could not be read"
 fi
 
 echo "Checking the order, the settings, the mock, the library and the logs"

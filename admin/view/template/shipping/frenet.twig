@@ -72,6 +72,58 @@
             </div>
           </div>
           <div class="row mb-3">
+            <label class="col-sm-2 col-form-label" for="input-weight-class">{{ entry_weight_class }}</label>
+            <div class="col-sm-10">
+              <select name="shipping_frenet_weight_class_id" id="input-weight-class" class="form-select">
+                <option value="0">{{ text_select }}</option>
+                {% for weight_class in weight_classes %}
+                <option value="{{ weight_class.weight_class_id }}"{% if weight_class.weight_class_id == shipping_frenet_weight_class_id %} selected="selected"{% endif %}>{{ weight_class.title|escape }}</option>
+                {% endfor %}
+              </select>
+              <div class="form-text">{{ help_weight_class }}</div>
+            </div>
+          </div>
+          <div class="row mb-3">
+            <label class="col-sm-2 col-form-label" for="input-length-class">{{ entry_length_class }}</label>
+            <div class="col-sm-10">
+              <select name="shipping_frenet_length_class_id" id="input-length-class" class="form-select">
+                <option value="0">{{ text_select }}</option>
+                {% for length_class in length_classes %}
+                <option value="{{ length_class.length_class_id }}"{% if length_class.length_class_id == shipping_frenet_length_class_id %} selected="selected"{% endif %}>{{ length_class.title|escape }}</option>
+                {% endfor %}
+              </select>
+              <div class="form-text">{{ help_length_class }}</div>
+            </div>
+          </div>
+          <div class="row mb-3">
+            <label class="col-sm-2 col-form-label" for="input-minimum-height">{{ entry_minimum_height }}</label>
+            <div class="col-sm-10">
+              <input type="number" name="shipping_frenet_minimum_height" value="{{ shipping_frenet_minimum_height|escape }}" min="0" step="any" required id="input-minimum-height" class="form-control"/>
+              <div class="form-text">{{ help_minimum_height }}</div>
+            </div>
+          </div>
+          <div class="row mb-3">
+            <label class="col-sm-2 col-form-label" for="input-minimum-width">{{ entry_minimum_width }}</label>
+            <div class="col-sm-10">
+              <input type="number" name="shipping_frenet_minimum_width" value="{{ shipping_frenet_minimum_width|escape }}" min="0" step="any" required id="input-minimum-width" class="form-control"/>
+              <div class="form-text">{{ help_minimum_width }}</div>
+            </div>
+          </div>
+          <div class="row mb-3">
+            <label class="col-sm-2 col-form-label" for="input-minimum-length">{{ entry_minimum_length }}</label>
+            <div class="col-sm-10">
+              <input type="number" name="shipping_frenet_minimum_length" value="{{ shipping_frenet_minimum_length|escape }}" min="0" step="any" required id="input-minimum-length" class="form-control"/>
+              <div class="form-text">{{ help_minimum_length }}</div>
+            </div>
+          </div>
+          <div class="row mb-3">
+            <label class="col-sm-2 col-form-label" for="input-default-weight">{{ entry_default_weight }}</label>
+            <div class="col-sm-10">
+              <input type="number" name="shipping_frenet_default_weight" value="{{ shipping_frenet_default_weight|escape }}" min="0" step="any" required id="input-default-weight" class="form-control"/>
+              <div class="form-text">{{ help_default_weight }}</div>
+            </div>
+          </div>
+          <div class="row mb-3">
             <label class="col-sm-2 col-form-label" for="input-timeout">{{ entry_timeout }}</label>
             <div class="col-sm-10">
               <input type="number" name="shipping_frenet_timeout" value="{{ shipping_frenet_timeout|escape }}" min="{{ timeout_min }}" max="{{ timeout_max }}" step="1" required id="input-timeout" class="form-control"/>

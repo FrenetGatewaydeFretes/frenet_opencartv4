@@ -84,6 +84,49 @@ final class ConfigTest extends TestCase {
 		self::assertSame(Config::ATTEMPTS_DEFAULT, $config->getAttempts());
 	}
 
+	public function testReadsTheUnitClassesTheStoreOwnerMapped(): void {
+		$config = $this->createConfig(['shipping_frenet_weight_class_id' => '5', 'shipping_frenet_length_class_id' => '3']);
+
+		self::assertSame(5, $config->getWeightClassId());
+		self::assertSame(3, $config->getLengthClassId());
+		self::assertSame(0, $this->createConfig([])->getWeightClassId());
+		self::assertSame(0, $this->createConfig([])->getLengthClassId());
+	}
+
+	public function testReadsTheMinimumMeasuresAndTheDefaultWeight(): void {
+		$config = $this->createConfig([
+			'shipping_frenet_minimum_height' => '3',
+			'shipping_frenet_minimum_width'  => '12,5',
+			'shipping_frenet_minimum_length' => '18',
+			'shipping_frenet_default_weight' => '0.3'
+		]);
+
+		self::assertSame(3.0, $config->getMinimumHeight());
+		self::assertSame(12.5, $config->getMinimumWidth());
+		self::assertSame(18.0, $config->getMinimumLength());
+		self::assertSame(0.3, $config->getDefaultWeight());
+	}
+
+	public function testFallsBackToTheCorreiosMinimumsWhenTheValueIsEmptyOrNotPositive(): void {
+		$config = $this->createConfig(['shipping_frenet_minimum_height' => '0', 'shipping_frenet_minimum_width' => '-4', 'shipping_frenet_minimum_length' => 'abc']);
+
+		self::assertSame(Config::DEFAULT_HEIGHT, $config->getMinimumHeight());
+		self::assertSame(Config::DEFAULT_WIDTH, $config->getMinimumWidth());
+		self::assertSame(Config::DEFAULT_LENGTH, $config->getMinimumLength());
+		self::assertSame(Config::DEFAULT_WEIGHT, $config->getDefaultWeight());
+	}
+
+	public function testParsesPositiveNumbersTypedInTheAdmin(): void {
+		self::assertSame(12.5, Config::parsePositive(' 12,5 '));
+		self::assertSame(0.0004, Config::parsePositive('0.0004'));
+		self::assertSame(2.0, Config::parsePositive(2));
+		self::assertNull(Config::parsePositive('0'));
+		self::assertNull(Config::parsePositive('-3'));
+		self::assertNull(Config::parsePositive('abc'));
+		self::assertNull(Config::parsePositive(null));
+		self::assertNull(Config::parsePositive(['1']));
+	}
+
 	public function testReadsAListAsEmptyAndKeepsBooleansAndNumbers(): void {
 		$config = $this->createConfig(['shipping_frenet_token' => ['abc'], 'shipping_frenet_status' => true, 'shipping_frenet_sort_order' => 4]);
 
