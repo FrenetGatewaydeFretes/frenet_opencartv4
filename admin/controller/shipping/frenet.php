@@ -162,7 +162,7 @@ class Frenet extends \Opencart\System\Engine\Controller {
 	}
 
 	/**
-	 * Settings to save with the default of each minimum measure and of the default weight that is empty, zero or not a number.
+	 * Settings to save, with the default for each minimum measure or default weight that is not a positive number.
 	 *
 	 * @param array<string, mixed> $settings
 	 *

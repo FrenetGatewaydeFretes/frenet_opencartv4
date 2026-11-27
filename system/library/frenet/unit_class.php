@@ -4,7 +4,7 @@ namespace Frenet;
 use Opencart\System\Library\DB;
 
 /**
- * Finds the store weight and length classes whose unit is the kilogram and the centimetre, the units the Frenet API expects.
+ * Finds the store weight and length classes in kg and cm, the units the Frenet API expects.
  */
 class UnitClass {
 	/**
