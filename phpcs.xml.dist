@@ -3,6 +3,8 @@
     <description>Keeps the extension runnable on every PHP version OpenCart 4 stores use, from 8.0 to 8.5.</description>
 
     <file>system/library/frenet</file>
+    <file>admin/controller/shipping/frenet.php</file>
+    <file>catalog/controller/shipping/frenet.php</file>
     <file>catalog/model/shipping/frenet.php</file>
     <arg name="extensions" value="php"/>
     <arg name="colors"/>

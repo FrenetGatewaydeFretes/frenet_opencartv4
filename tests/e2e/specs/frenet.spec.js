@@ -42,6 +42,10 @@ const ITEMS = {
 	}
 };
 const readRequests = () => (fs.existsSync(REQUESTS) ? fs.readFileSync(REQUESTS, 'utf8').split('\n').filter((line) => line.trim() !== '').map((line) => JSON.parse(line)) : []);
+const SIMULATOR_ROUTE = 'index.php?route=extension/opencartfrenetv4/shipping/frenet|quote';
+const SIMULATOR_POSTCODE = 'Enter a valid postcode, such as 01310-100.';
+const SIMULATOR_LIMIT = 'Too many shipping estimates in a short time. Wait a minute and try again.';
+const SIMULATOR_FORM = { product_id: '1001', quantity: '2', postcode: '20040-020' };
 const route = (path, method) => new RegExp(`route=${path}(\\||%7C|\\.)${method}`, 'i');
 
 const watch = (page) => {
@@ -130,6 +134,8 @@ const checkSettings = async (page, token, migrated, testInfo) => {
 	await expect(page.locator('#input-minimum-width')).toHaveValue('11');
 	await expect(page.locator('#input-minimum-length')).toHaveValue('16');
 	await expect(page.locator('#input-default-weight')).toHaveValue('1');
+	await expect(page.locator('#input-simulator')).toHaveValue('1');
+	await expect(page.locator('#input-simulator-limit')).toHaveValue('60');
 	await page.screenshot({ path: testInfo.outputPath('settings.png'), fullPage: true });
 };
 
@@ -165,12 +171,16 @@ const openCheckout = async (page) => {
 	await expect(page.locator('#input-shipping-address option')).toHaveCount(2);
 };
 
-const startCheckout = async (page, products = [[PRODUCT_ID, 1]], coupon = '') => {
+const loginCustomer = async (page) => {
 	await page.goto('index.php?route=account/login');
 	await page.locator('#input-email').fill(CUSTOMER.email);
 	await page.locator('#input-password').fill(CUSTOMER.password);
 	await page.locator('#form-login button[type=submit]').click();
 	await expect(page).toHaveURL(/account\/account/);
+};
+
+const startCheckout = async (page, products = [[PRODUCT_ID, 1]], coupon = '') => {
+	await loginCustomer(page);
 
 	for (const [product_id, quantity] of products) {
 		const added = await page.request.post('index.php?route=checkout/cart|add', { form: { product_id: String(product_id), quantity: String(quantity) } });
@@ -347,7 +357,17 @@ test('@upgrade quotes with the token of version 1.0.0 before the settings are op
 		name = await checkout(page, 2, testInfo);
 	});
 
+	await test.step('The product page has no simulator until the settings are opened', async () => {
+		await openProduct(page, PRODUCT_ID);
+		await expect(page.locator('#frenet-simulator')).toHaveCount(0);
+	});
 	await test.step('The settings show the token moved to the new key and the module version', () => checkSettings(page, token, true, testInfo));
+	await test.step('The product page shows the simulator once the settings were opened', async () => {
+		await openProduct(page, PRODUCT_ID);
+		await simulate(page, '20040-020');
+		await expect(page.locator('#frenet-simulator-result tr')).not.toHaveCount(0);
+		await page.screenshot({ path: testInfo.outputPath('simulator-upgrade.png'), fullPage: true });
+	});
 	await test.step('The order keeps the Frenet shipping', () => checkOrder(page, token, name, testInfo));
 
 	expect(errors).toEqual([]);
@@ -561,5 +581,195 @@ test('@cache quotes the same cart once and quotes it again after a failure', asy
 	}
 
 	await page.screenshot({ path: testInfo.outputPath(`checkout-cache-${scenario}.png`), fullPage: true });
+	expect(errors).toEqual([]);
+});
+
+const openProduct = async (page, product_id) => {
+	await page.goto(`index.php?route=product/product&product_id=${product_id}`);
+	await expect(page.locator('#form-product')).toBeVisible();
+};
+
+const simulate = async (page, postcode, quantity = '') => {
+	if (quantity) await page.locator('#input-quantity').fill(quantity);
+
+	await page.locator('#input-frenet-postcode').fill(postcode);
+
+	const answered = page.waitForResponse((response) => response.request().method() === 'POST' && route('extension/opencartfrenetv4/shipping/frenet', 'quote').test(response.url()));
+
+	await page.locator('#input-frenet-postcode').press('Enter');
+
+	const response = await answered;
+
+	await expect(page.locator('#button-frenet-simulator')).toBeEnabled();
+
+	return response;
+};
+
+const simulatedRates = async (page) => page.locator('#frenet-simulator-result tr').evaluateAll((rows) => rows.map((row) => Array.from(row.cells, (cell) => cell.innerText.trim())));
+
+test('@simulator-page quotes the product page alone as the cart would, with the errors of the cart button', async ({ page }, testInfo) => {
+	const errors = watch(page);
+	let rates = [];
+
+	await login(page);
+
+	await test.step('The simulator comes right after the product form and a guest gets no postcode', async () => {
+		const postcode = page.waitForResponse(route('extension/opencartfrenetv4/shipping/frenet', 'postcode'));
+
+		await openProduct(page, 1001);
+		await expect(page.locator('#frenet-simulator')).toHaveCount(1);
+
+		const cart = await page.locator('#button-cart').boundingBox();
+		const simulator = await page.locator('#frenet-simulator').boundingBox();
+
+		expect(simulator.y).toBeGreaterThan(cart.y + cart.height);
+
+		await page.locator('#input-frenet-postcode').focus();
+		await postcode;
+		await expect(page.locator('#input-frenet-postcode')).toHaveValue('');
+	});
+	await test.step('A postcode without 8 digits is refused under the field', async () => {
+		await simulate(page, '2004');
+		await expect(page.locator('#error-frenet-postcode')).toHaveText(SIMULATOR_POSTCODE);
+		await expect(page.locator('#error-frenet-postcode')).toBeVisible();
+		await expect(page.locator('#input-frenet-postcode')).toHaveClass(/is-invalid/);
+	});
+	await test.step('A valid postcode shows the Frenet rates of the quantity chosen', async () => {
+		await simulate(page, '20040-020', '2');
+		await expect(page.locator('#error-frenet-postcode')).toBeHidden();
+		await expect(page.locator('#frenet-simulator-result tr')).not.toHaveCount(0);
+
+		rates = await simulatedRates(page);
+
+		await page.locator('#frenet-simulator').screenshot({ path: testInfo.outputPath('simulator.png') });
+		await page.screenshot({ path: testInfo.outputPath('simulator-page.png'), fullPage: true });
+	});
+	await test.step('A product without shipping has no simulator', async () => {
+		await openProduct(page, 1002);
+		await expect(page.locator('#frenet-simulator')).toHaveCount(0);
+	});
+	await test.step('A quantity below the minimum of the product is refused', async () => {
+		await openProduct(page, 1005);
+		await simulate(page, '20040-020', '1');
+		await expect(page.locator('#frenet-simulator-result .alert-danger')).toHaveText('The minimum quantity of this product is 2.');
+		await expect(page.locator('#input-quantity')).toHaveClass(/is-invalid/);
+	});
+	await test.step('Required options left empty are refused under each option, as the cart button does', async () => {
+		await openProduct(page, 42);
+		await simulate(page, '20040-020', '2');
+		await expect(page.locator('#form-product .invalid-feedback.d-block').first()).toContainText(/^Choose .+ to estimate the shipping\.$/);
+		await expect(page.locator('#frenet-simulator-result tr')).toHaveCount(0);
+		await page.screenshot({ path: testInfo.outputPath('simulator-options.png'), fullPage: true });
+	});
+	await test.step('A quote sent from another site is refused', async () => {
+		const response = await page.request.post(SIMULATOR_ROUTE, { form: SIMULATOR_FORM, headers: { Origin: 'https://evil.example' } });
+
+		expect(response.status()).toBe(403);
+	});
+	await test.step('A logged customer gets the postcode of the default address and the same rates', async () => {
+		await loginCustomer(page);
+		await openProduct(page, 1001);
+		await expect(page.locator('#input-frenet-postcode')).toHaveValue('20040-020');
+		await simulate(page, '20040-020', '2');
+		expect(await simulatedRates(page)).toEqual(rates);
+	});
+	await test.step('The checkout of the same product offers the same Frenet rates', async () => {
+		const added = await page.request.post('index.php?route=checkout/cart|add', { form: { product_id: '1001', quantity: '2' } });
+
+		expect(added.ok()).toBeTruthy();
+
+		await openCheckout(page);
+
+		const block = await showShippingMethods(page);
+
+		await expect(block.frenet).toHaveCount(rates.length, { timeout: 60000 });
+
+		for (const [title, text] of rates) {
+			await expect(block.list).toContainText(title);
+			await expect(block.list).toContainText(text);
+		}
+
+		await page.screenshot({ path: testInfo.outputPath('simulator-checkout.png'), fullPage: true });
+	});
+
+	const bodies = readRequests().filter((request) => request.headers.token === 'simulator').map((request) => JSON.stringify(request.body));
+
+	expect(bodies).toHaveLength(3);
+	expect(new Set(bodies).size).toBe(1);
+	expect(errors).toEqual([]);
+});
+
+test('@simulator-limit blocks the quotes of an IP above the limit per minute', async ({ page }, testInfo) => {
+	const errors = watch(page);
+
+	await openProduct(page, 1001);
+
+	const statuses = [];
+
+	for (let quote = 1; quote <= 3; quote++) {
+		statuses.push((await page.request.post(SIMULATOR_ROUTE, { form: SIMULATOR_FORM })).status());
+	}
+
+	expect(statuses).toEqual([200, 200, 200]);
+
+	const response = await simulate(page, '20040-020', '2');
+
+	expect(response.status()).toBe(429);
+	expect(Number(response.headers()['retry-after'])).toBeGreaterThan(0);
+	expect(Number(response.headers()['retry-after'])).toBeLessThanOrEqual(60);
+	await expect(page.locator('#frenet-simulator-result .alert-danger')).toHaveText(SIMULATOR_LIMIT);
+	await page.locator('#frenet-simulator').screenshot({ path: testInfo.outputPath('simulator-limit.png') });
+	expect(errors).toEqual([]);
+});
+
+test('@simulator-off shows no simulator and refuses its quotes when turned off', async ({ page }) => {
+	const errors = watch(page);
+
+	await openProduct(page, 1001);
+	await expect(page.locator('#frenet-simulator')).toHaveCount(0);
+
+	const response = await page.request.post(SIMULATOR_ROUTE, { form: SIMULATOR_FORM });
+
+	expect((await response.json()).error.warning).toBe('The shipping estimate is turned off.');
+	expect(errors).toEqual([]);
+});
+
+test('@simulator-variant quotes a variant as the cart button adds it to the cart', async ({ page }, testInfo) => {
+	const errors = watch(page);
+
+	await login(page);
+	await loginCustomer(page);
+	await openProduct(page, 1006);
+	await simulate(page, '20040-020', '1');
+	await expect(page.locator('#frenet-simulator-result tr')).not.toHaveCount(0);
+	await page.screenshot({ path: testInfo.outputPath('simulator-variant.png'), fullPage: true });
+
+	const added = await page.request.post('index.php?route=checkout/cart|add', { form: { product_id: '1006', quantity: '1' } });
+
+	expect((await added.json()).success).toBeTruthy();
+
+	await openCheckout(page);
+
+	const block = await showShippingMethods(page);
+
+	await expect(block.frenet.first()).toBeAttached({ timeout: 60000 });
+
+	const bodies = readRequests().filter((request) => request.headers.token === 'simulator-variant').map((request) => JSON.stringify(request.body));
+
+	expect(bodies).toHaveLength(2);
+	expect(new Set(bodies).size).toBe(1);
+	expect(errors).toEqual([]);
+});
+
+test('@uninstall removes Frenet from Extensions > Extensions > Shipping', async ({ page }) => {
+	const errors = watch(page);
+	const token = await login(page);
+	const row = await shippingRow(page, token);
+
+	page.once('dialog', (dialog) => dialog.accept());
+	await row.locator('a.btn-danger').click();
+	await expect(page.locator('#extension tr', { hasText: 'Frenet' }).locator('a.btn-success')).toBeVisible();
+	await openProduct(page, PRODUCT_ID);
+	await expect(page.locator('#frenet-simulator')).toHaveCount(0);
 	expect(errors).toEqual([]);
 });

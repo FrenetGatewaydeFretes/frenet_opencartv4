@@ -33,6 +33,8 @@ $_['entry_minimum_length']        = 'Minimum length (cm)';
 $_['entry_default_weight']        = 'Default weight (kg)';
 $_['entry_timeout']               = 'Time limit (seconds)';
 $_['entry_attempts']              = 'Attempts';
+$_['entry_simulator']             = 'Product page simulator';
+$_['entry_simulator_limit']       = 'Simulator limit per IP';
 $_['entry_debug']                 = 'Debug';
 $_['entry_sort_order']            = 'Sort Order';
 
@@ -51,6 +53,8 @@ $_['help_minimum_length']         = 'Smallest length sent to Frenet: a shorter p
 $_['help_default_weight']         = 'Weight sent to Frenet for a product registered without one. Default: 1 kg.';
 $_['help_timeout']                = 'How long each quote attempt waits for Frenet to answer, from 2 to 10 seconds.';
 $_['help_attempts']               = 'How many times the quote is sent when Frenet does not answer or answers with a server error, from 1 to 3. An invalid token and the other refusals of Frenet (4xx errors other than 408 and 429) are never retried.';
+$_['help_simulator']              = 'Shows on the product page a postcode field that estimates the Frenet rates of the product, with the cart prices and delivery times.';
+$_['help_simulator_limit']        = 'How many estimates each IP may ask per minute. Above it, the simulator asks to wait and the block goes to frenet.log. Use 0 for no limit.';
 $_['help_debug']                  = 'Writes every quote request and response to frenet.log, without the token. Errors are always written.';
 
 // Placeholder
@@ -61,3 +65,4 @@ $_['error_permission']            = 'Warning: You do not have permission to modi
 $_['error_warning']               = 'Warning: the settings were not saved. Fix the highlighted fields.';
 $_['error_postcode']              = 'The origin postcode must have 8 digits, such as 01310-100.';
 $_['error_token']                 = 'Enter the token generated in the Frenet panel to enable the shipping.';
+$_['error_simulator_limit']       = 'The limit only accepts 0 or positive whole numbers, such as 60.';

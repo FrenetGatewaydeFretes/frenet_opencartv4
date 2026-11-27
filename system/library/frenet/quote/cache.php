@@ -17,7 +17,7 @@ class Cache {
 	 */
 	private const PREFIX = 'frenet.quote.';
 
-	public function __construct(private CoreCache $cache) {}
+	public function __construct(private CoreCache $cache, private bool $writable = true) {}
 
 	/**
 	 * Key of the answer, so another account or any change in the cart, address or settings sent asks the API again.
@@ -49,7 +49,7 @@ class Cache {
 	}
 
 	/**
-	 * Keeps the answer for TTL seconds, also inside the entry, because the file cache of 4.0.2.x returns expired files.
+	 * Keeps the answer for TTL seconds unless read-only, also in the entry, as the 4.0.2.x file cache returns expired files.
 	 *
 	 * @param string $key
 	 * @param string $body
@@ -57,6 +57,10 @@ class Cache {
 	 * @return void
 	 */
 	public function set(string $key, string $body): void {
+		if (!$this->writable) {
+			return;
+		}
+
 		$this->quietly(function() use ($key, $body): void {
 			$this->cache->set($key, ['expires' => time() + self::TTL, 'body' => $body], self::TTL);
 		});

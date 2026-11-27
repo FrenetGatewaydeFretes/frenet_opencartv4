@@ -19,9 +19,19 @@ use Opencart\System\Library\Log as CoreLog;
 use Throwable;
 
 /**
- * Frenet shipping method: quotes the cart through the Frenet API and offers each service at checkout.
+ * Frenet shipping method: quotes the cart, or the product page alone, through the Frenet API and offers each service.
  */
 class Frenet extends Model {
+	/**
+	 * @var string
+	 */
+	private const FILE_CACHE = 'file';
+
+	/**
+	 * @var int
+	 */
+	private const SIMULATION_ATTEMPTS = 1;
+
 	/**
 	 * Shipping method with one option per service the Frenet API offers, or a message in the Frenet block when the quote fails or no service serves the address.
 	 *
@@ -32,6 +42,79 @@ class Frenet extends Model {
 	public function getQuote(array $address): array {
 		$this->autoloader->register('Frenet', DIR_EXTENSION . 'opencartfrenetv4/system/library/frenet/');
 
+		return $this->quote($address, $this->cart->getProducts(), false);
+	}
+
+	/**
+	 * Quotes the page product alone as the cart would, with one attempt and without filling a file cache.
+	 *
+	 * @param array<string, mixed> $address
+	 * @param array<string, mixed> $product
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function getProductQuote(array $address, array $product): array {
+		return $this->quote($address, [$product], true);
+	}
+
+	/**
+	 * Shipping address of a Brazilian postcode, with the country and the state, as the cart shipping estimate builds it.
+	 *
+	 * @param string $postcode
+	 * @param string $state
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function getPostcodeAddress(string $postcode, string $state): array {
+		$this->load->model('localisation/country');
+		$this->load->model('localisation/zone');
+
+		$country = $this->findRow($this->model_localisation_country->getCountries(), 'iso_code_2', Postcode::COUNTRY);
+		$zone = $country ? $this->findRow($this->model_localisation_zone->getZonesByCountryId((int)$country['country_id']), 'code', $state) : [];
+
+		return [
+			'firstname'      => '',
+			'lastname'       => '',
+			'company'        => '',
+			'address_1'      => '',
+			'address_2'      => '',
+			'postcode'       => (string)Postcode::format($postcode),
+			'city'           => '',
+			'zone_id'        => (int)($zone['zone_id'] ?? 0),
+			'zone'           => (string)($zone['name'] ?? ''),
+			'zone_code'      => (string)($zone['code'] ?? $state),
+			'country_id'     => (int)($country['country_id'] ?? 0),
+			'country'        => (string)($country['name'] ?? ''),
+			'iso_code_2'     => Postcode::COUNTRY,
+			'iso_code_3'     => (string)($country['iso_code_3'] ?? 'BRA'),
+			'address_format' => (string)($country['address_format'] ?? '')
+		];
+	}
+
+	/**
+	 * Postcode of an address of the customer, or an empty string when the customer has no such address.
+	 *
+	 * @param int $customer_id
+	 * @param int $address_id
+	 *
+	 * @return string
+	 */
+	public function getAddressPostcode(int $customer_id, int $address_id): string {
+		$query = $this->db->query("SELECT `postcode` FROM `" . DB_PREFIX . "address` WHERE `address_id` = '" . $address_id . "' AND `customer_id` = '" . $customer_id . "'");
+
+		return (string)($query->row['postcode'] ?? '');
+	}
+
+	/**
+	 * Frenet method for the products at checkout or in the simulator, which logs answer problems only in debug.
+	 *
+	 * @param array<string, mixed>                    $address
+	 * @param array<int|string, array<string, mixed>> $products
+	 * @param bool                                    $simulation
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function quote(array $address, array $products, bool $simulation): array {
 		$config = new FrenetConfig($this->config);
 		$log = new FrenetLog(new CoreLog(FrenetLog::FILENAME), $config->isDebug());
 
@@ -60,9 +143,9 @@ class Frenet extends Model {
 		try {
 			$units = new UnitClass($this->db, DB_PREFIX);
 			$builder = new Builder($config, $this->weight, $this->length, $config->getWeightClassId() ?: $units->findWeightClassId(), $config->getLengthClassId() ?: $units->findLengthClassId(), VERSION);
-			$products = $this->cart->getProducts();
 			$request = $builder->build($address, $products, $this->getCatalog($builder->filterShipped($products), $log), (string)($this->session->data['coupon'] ?? ''));
-			$result = (new Api(new Client(), new QuoteCache($this->cache), $log, $config->getToken(), VERSION, $config->getTimeout(), $config->getAttempts()))->quote($request);
+			$cache = new QuoteCache($this->cache, !$simulation || $this->config->get('cache_engine') !== self::FILE_CACHE);
+			$result = (new Api(new Client(), $cache, $log, $config->getToken(), VERSION, $config->getTimeout(), $simulation ? self::SIMULATION_ATTEMPTS : $config->getAttempts()))->quote($request);
 		} catch (Throwable $exception) {
 			$context = $exception instanceof UnavailableException ? [] : ['exception' => $exception::class, 'at' => $exception->getFile() . ':' . $exception->getLine()];
 			$context += $request !== null ? ['request' => $request->toArray()] : ['postcode' => $address['postcode'] ?? ''];
@@ -73,11 +156,11 @@ class Frenet extends Model {
 		}
 
 		if ($result->getErrors() !== []) {
-			$log->error('Services with an error were left out of the quote', ['services' => $result->getErrors(), 'request' => $request->toArray()]);
+			$this->logAnswer($log, $simulation, 'Services with an error were left out of the quote', ['services' => $result->getErrors(), 'request' => $request->toArray()]);
 		}
 
 		if ($result->getServices() === []) {
-			$log->error('Quote returned no service' . ($result->getMessage() !== '' ? ': ' . $result->getMessage() : ''), ['request' => $request->toArray()]);
+			$this->logAnswer($log, $simulation, 'Quote returned no service' . ($result->getMessage() !== '' ? ': ' . $result->getMessage() : ''), ['request' => $request->toArray()]);
 
 			return $this->getMethod($config, [], $this->language->get('error_no_services'));
 		}
@@ -85,6 +168,43 @@ class Frenet extends Model {
 		$template = $config->isDeliveryTimeShown() ? ($config->getDeliveryTimeMessage() ?: $this->language->get('text_delivery_time')) : '';
 
 		return $this->getMethod($config, $this->getOptions($result->getServices(), $template, $config->getAdditionalDays(), $config->getTaxClassId()), false);
+	}
+
+	/**
+	 * Logs an API answer problem as an error at checkout and only in debug for the simulator, which buyers call more.
+	 *
+	 * @param FrenetLog            $log
+	 * @param bool                 $simulation
+	 * @param string               $message
+	 * @param array<string, mixed> $context
+	 *
+	 * @return void
+	 */
+	private function logAnswer(FrenetLog $log, bool $simulation, string $message, array $context): void {
+		if ($simulation) {
+			$log->debug($message, $context);
+		} else {
+			$log->error($message, $context);
+		}
+	}
+
+	/**
+	 * Row whose field has the value, or an empty array when none has.
+	 *
+	 * @param array<int, array<string, mixed>> $rows
+	 * @param string                           $field
+	 * @param string                           $value
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function findRow(array $rows, string $field, string $value): array {
+		foreach ($rows as $row) {
+			if ((string)($row[$field] ?? '') === $value) {
+				return $row;
+			}
+		}
+
+		return [];
 	}
 
 	/**

@@ -1,0 +1,122 @@
+<div id="frenet-simulator" class="mb-3" data-quote-url="{{ quote_url }}" data-postcode-url="{{ postcode_url }}" data-error="{{ error_unavailable|escape }}" data-autofill="{{ autofill ? 1 : 0 }}">
+  <label for="input-frenet-postcode" class="form-label">{{ entry_simulator_postcode }}</label>
+  <div class="input-group">
+    <input type="text" value="" placeholder="{{ placeholder_simulator_postcode|escape }}" id="input-frenet-postcode" class="form-control" inputmode="numeric" maxlength="10" autocomplete="postal-code" aria-describedby="error-frenet-postcode"/>
+    <button type="button" id="button-frenet-simulator" class="btn btn-light" data-loading="{{ text_simulator_loading|escape }}">{{ button_simulator }}</button>
+  </div>
+  <div id="error-frenet-postcode" class="invalid-feedback"></div>
+  <div id="frenet-simulator-result" class="mt-2" aria-live="polite"></div>
+</div>
+<script type="text/javascript"><!--
+(function() {
+	var simulator = $('#frenet-simulator');
+	var input = $('#input-frenet-postcode');
+	var button = $('#button-frenet-simulator');
+	var result = $('#frenet-simulator-result');
+	var unavailable = {error: {warning: simulator.data('error')}};
+
+	input.one('focus', function() {
+		$.ajax({
+			url: simulator.data('postcode-url'),
+			dataType: 'json',
+			success: function(json) {
+				if (json['postcode'] && !input.val()) {
+					input.val(json['postcode']);
+				}
+			}
+		});
+	});
+
+	if (simulator.data('autofill')) {
+		input.triggerHandler('focus');
+	}
+
+	input.on('keydown', function(e) {
+		if (e.key == 'Enter') {
+			e.preventDefault();
+
+			button.trigger('click');
+		}
+	});
+
+	var show = function(json) {
+		if (json['error']) {
+			for (var key in json['error']) {
+				var id = key.replaceAll('_', '-');
+
+				if (key == 'warning' || key == 'quantity') {
+					result.append($('<div class="alert alert-danger mb-0"></div>').text(json['error'][key]));
+				}
+
+				if (key != 'warning') {
+					$('#input-' + id).addClass('is-invalid').find('.form-control, .form-select, .form-check-input, .form-check-label').addClass('is-invalid');
+				}
+
+				if (key != 'warning' && key != 'quantity') {
+					$('#error-' + id).text(json['error'][key]).addClass('d-block');
+				}
+			}
+		}
+
+		if (json['quote']) {
+			var tbody = $('<tbody></tbody>');
+
+			for (var i = 0; i < json['quote'].length; i++) {
+				tbody.append($('<tr></tr>').append($('<td></td>').text(json['quote'][i]['title']), $('<td class="text-end text-nowrap"></td>').text(json['quote'][i]['text'])));
+			}
+
+			result.append($('<table class="table table-sm table-striped mb-0"></table>').append(tbody));
+		}
+	};
+
+	button.on('click', function() {
+		var data = $('#form-product').serialize() + '&postcode=' + encodeURIComponent(input.val());
+
+		if (simulator.data('loading')) {
+			simulator.data('next', data);
+
+			return;
+		}
+
+		$.ajax({
+			url: simulator.data('quote-url'),
+			type: 'post',
+			data: data,
+			dataType: 'json',
+			beforeSend: function() {
+				result.empty();
+				$('#form-product').find('.is-invalid').removeClass('is-invalid');
+				$('#form-product').find('.invalid-feedback').removeClass('d-block');
+				input.removeClass('is-invalid');
+				$('#error-frenet-postcode').removeClass('d-block').text('');
+				simulator.data('loading', true);
+				simulator.data('next', null);
+				button.data('label', button.html()).prop('disabled', true).text(button.data('loading'));
+			},
+			complete: function() {
+				var next = simulator.data('next');
+
+				simulator.data('loading', false);
+				simulator.data('next', null);
+				button.prop('disabled', false).html(button.data('label'));
+
+				if (next && next !== data) {
+					button.trigger('click');
+				}
+			},
+			success: show,
+			error: function(xhr) {
+				var json;
+
+				try {
+					json = JSON.parse(xhr.responseText);
+				} catch (e) {
+					json = unavailable;
+				}
+
+				show(json && json['error'] ? json : unavailable);
+			}
+		});
+	});
+})();
+//--></script>
