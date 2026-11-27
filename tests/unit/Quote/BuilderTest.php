@@ -166,7 +166,21 @@ final class BuilderTest extends TestCase {
 
 	public function testRefusesALengthClassThatDoesNotExist(): void {
 		$this->expectException(Exception::class);
-		$this->expectExceptionMessage('The length class mapped to centimetres does not exist: 0');
+		$this->expectExceptionMessage('The length class mapped to centimetres does not exist: 9');
+
+		$this->createBuilder([], null, self::KG, 9)->build(['postcode' => '20040020'], [$this->product([])], [], '');
+	}
+
+	public function testAsksToChooseTheKilogramClassWhenTheStoreHasNone(): void {
+		$this->expectException(Exception::class);
+		$this->expectExceptionMessage('The store has no weight class with the unit kg: choose the kilogram class in the Frenet settings');
+
+		$this->createBuilder([], null, 0)->build(['postcode' => '20040020'], [$this->product([])], [], '');
+	}
+
+	public function testAsksToChooseTheCentimetreClassWhenTheStoreHasNone(): void {
+		$this->expectException(Exception::class);
+		$this->expectExceptionMessage('The store has no length class with the unit cm: choose the centimetre class in the Frenet settings');
 
 		$this->createBuilder([], null, self::KG, 0)->build(['postcode' => '20040020'], [$this->product([])], [], '');
 	}

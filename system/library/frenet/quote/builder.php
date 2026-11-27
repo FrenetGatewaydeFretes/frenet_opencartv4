@@ -26,11 +26,11 @@ class Builder {
 	 */
 	public function build(array $address, array $products, array $catalog, string $coupon): Request {
 		if ($this->weight->getUnit($this->weight_class_id) === '') {
-			throw new Exception('The weight class mapped to kilograms does not exist: ' . $this->weight_class_id);
+			throw new Exception($this->weight_class_id === 0 ? 'The store has no weight class with the unit kg: choose the kilogram class in the Frenet settings' : 'The weight class mapped to kilograms does not exist: ' . $this->weight_class_id);
 		}
 
 		if ($this->length->getUnit($this->length_class_id) === '') {
-			throw new Exception('The length class mapped to centimetres does not exist: ' . $this->length_class_id);
+			throw new Exception($this->length_class_id === 0 ? 'The store has no length class with the unit cm: choose the centimetre class in the Frenet settings' : 'The length class mapped to centimetres does not exist: ' . $this->length_class_id);
 		}
 
 		$default_weight = $this->config->getDefaultWeight();
