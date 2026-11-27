@@ -76,7 +76,9 @@ class Frenet extends Model {
 			return $this->getMethod($config, [], $this->language->get('error_no_services'));
 		}
 
-		return $this->getMethod($config, $this->getOptions($result->getServices(), $config->getDeliveryTimeMessage(), $config->getAdditionalDays()), false);
+		$template = $config->isDeliveryTimeShown() ? ($config->getDeliveryTimeMessage() ?: $this->language->get('text_delivery_time')) : '';
+
+		return $this->getMethod($config, $this->getOptions($result->getServices(), $template, $config->getAdditionalDays()), false);
 	}
 
 	/**

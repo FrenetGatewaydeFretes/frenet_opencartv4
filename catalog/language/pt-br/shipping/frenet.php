@@ -1,5 +1,6 @@
 <?php
 $_['text_title']      = 'Frenet';
+$_['text_delivery_time'] = '%s - Em média %d dia(s)';
 $_['text_sucesso']    = 'Reconexão realizada com sucesso!';
 $_['text_free']       = '<span style="color:green;font-weight:bold">Grátis</span>';
 
