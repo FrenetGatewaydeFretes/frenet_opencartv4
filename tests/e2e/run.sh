@@ -284,6 +284,7 @@ else
 	sql "DELETE FROM oc_cart"
 	E2E_SCENARIO=geozone playwright @settings
 	[ "$(sql "SELECT value FROM oc_setting WHERE \`key\` = 'shipping_frenet_geo_zone_id'")" = 902 ] || fail "the geo zone was not saved"
+	[ "$(sql "SELECT value FROM oc_setting WHERE \`key\` = 'shipping_frenet_msg_prazo'")" = '%s - Entrega &lt;rápida&gt; &amp; &quot;segura&quot; em %d dia(s)' ] || fail "the delivery time message was not saved escaped once, as the core saves every field"
 	sql "UPDATE oc_setting SET value = '0' WHERE \`key\` = 'shipping_frenet_geo_zone_id'"
 fi
 

@@ -423,10 +423,13 @@ test('@items sends to Frenet the shipped items of the cart in kilograms and cent
 	expect(errors).toEqual([]);
 });
 
+const DELIVERY_MESSAGE = '%s - Entrega <rápida> & "segura" em %d dia(s)';
+
 const SETTINGS = {
 	invalid: {
 		fill: { '#input-postcode': '0131', '#input-token': '' },
 		status: '1',
+		token_required: true,
 		errors: {
 			'#error-postcode': 'The origin postcode must have 8 digits, such as 01310-100.',
 			'#error-token': 'Enter the token generated in the Frenet panel to enable the shipping.'
@@ -439,11 +442,13 @@ const SETTINGS = {
 		tax_class: 'Frenet E2E',
 		geo_zone: '0',
 		postcode: '01310-100',
+		token_required: true,
 		frenet: [/^SEDEX - Average 5 day\(s\) - \$46\.75/]
 	},
 	geozone: {
-		fill: {},
+		fill: { '#input-msg-prazo': DELIVERY_MESSAGE },
 		geo_zone_name: 'Sao Paulo E2E',
+		msg_prazo: DELIVERY_MESSAGE,
 		frenet: []
 	}
 };
@@ -470,6 +475,8 @@ test('@settings saves the settings by AJAX, validates them and applies the tax, 
 	if (expected.geo_zone) await page.locator('#input-geo-zone').selectOption(expected.geo_zone);
 	if (expected.geo_zone_name) await page.locator('#input-geo-zone').selectOption({ label: expected.geo_zone_name });
 
+	await expect(page.locator('#frenet-token-required')).toHaveCount(expected.token_required ? 1 : 0);
+
 	const json = await saveSettings(page);
 
 	if (expected.errors) {
@@ -488,6 +495,7 @@ test('@settings saves the settings by AJAX, validates them and applies the tax, 
 	}
 
 	await expect(page.locator('#alert .alert-success')).toBeVisible();
+	await expect(page.locator('#frenet-token-required')).toHaveCount(0);
 	await expect(page.locator('#input-token')).toHaveValue('');
 	if (expected.postcode) await expect(page.locator('#input-postcode')).toHaveValue(expected.postcode);
 	await page.screenshot({ path: testInfo.outputPath(`settings-${scenario}.png`), fullPage: true });
@@ -496,6 +504,7 @@ test('@settings saves the settings by AJAX, validates them and applies the tax, 
 	await expect(page.locator('#input-token')).toHaveAttribute('placeholder', TOKEN_SAVED);
 	await expect(page.locator('#frenet-token-required')).toHaveCount(0);
 	if (expected.tax_class) await expect(page.locator('#input-tax-class option:checked')).toHaveText(expected.tax_class);
+	if (expected.msg_prazo) await expect(page.locator('#input-msg-prazo')).toHaveValue(expected.msg_prazo);
 
 	await startCheckout(page);
 
