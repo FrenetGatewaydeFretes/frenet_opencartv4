@@ -184,6 +184,15 @@ sql "SET SESSION sql_mode = 'NO_ENGINE_SUBSTITUTION';
 		(0, 'shipping_frenet', 'shipping_frenet_status', '1', 0),
 		(0, 'shipping_frenet', 'shipping_frenet_postcode', '01310-100', 0),
 		(0, 'shipping_frenet', 'shipping_frenet_sort_order', '1', 0);"
+sql "SET SESSION sql_mode = 'NO_ENGINE_SUBSTITUTION';
+	INSERT INTO oc_geo_zone SET geo_zone_id = 901, name = 'Brasil E2E', description = 'Brasil E2E';
+	INSERT INTO oc_zone_to_geo_zone SET geo_zone_id = 901, country_id = 30, zone_id = 0;
+	INSERT INTO oc_geo_zone SET geo_zone_id = 902, name = 'Sao Paulo E2E', description = 'Sao Paulo E2E';
+	INSERT INTO oc_zone_to_geo_zone SET geo_zone_id = 902, country_id = 30, zone_id = (SELECT zone_id FROM oc_zone WHERE country_id = 30 AND code = 'SP');
+	INSERT INTO oc_tax_rate SET tax_rate_id = 901, geo_zone_id = 901, name = 'Imposto E2E', rate = 10, type = 'P';
+	INSERT INTO oc_tax_rate_to_customer_group SET tax_rate_id = 901, customer_group_id = 1;
+	INSERT INTO oc_tax_class SET tax_class_id = 901, title = 'Frenet E2E', description = 'Frenet E2E';
+	INSERT INTO oc_tax_rule SET tax_class_id = 901, tax_rate_id = 901, based = 'shipping', priority = 1;"
 fill_nulls oc_customer
 fill_nulls oc_address
 has_column oc_customer address_id && sql "UPDATE oc_customer c JOIN oc_address a ON a.customer_id = c.customer_id SET c.address_id = a.address_id"
@@ -259,6 +268,23 @@ else
 	sql "UPDATE oc_address SET postcode = '20040-020'"
 	frenet_log=$(store_log frenet.log)
 	! grep -q 'SKU and categories could not be read' <<< "$frenet_log" || fail "the SKU and categories of the cart could not be read"
+
+	echo "Running Playwright $PLAYWRIGHT_VERSION: settings saved with a postcode of 4 digits and Frenet enabled without a token"
+	sql "DELETE FROM oc_setting WHERE \`key\` = 'shipping_frenet_token'; DELETE FROM oc_cart"
+	E2E_SCENARIO=invalid playwright @settings
+	[ "$(sql "SELECT value FROM oc_setting WHERE \`key\` = 'shipping_frenet_postcode'")" = 01310-100 ] || fail "the invalid settings changed the origin postcode"
+	[ "$(sql "SELECT COUNT(*) FROM oc_setting WHERE \`key\` = 'shipping_frenet_token'")" = 0 ] || fail "the invalid settings saved a token"
+
+	echo "Running Playwright $PLAYWRIGHT_VERSION: settings saved with the token, 2 additional days and the tax class, checked at checkout"
+	E2E_SCENARIO=valid playwright @settings
+	settings=$(sql "SELECT CONCAT(\`key\`, '=', value) FROM oc_setting WHERE \`key\` IN ('shipping_frenet_token', 'shipping_frenet_postcode', 'shipping_frenet_additional_days', 'shipping_frenet_tax_class_id', 'shipping_frenet_geo_zone_id', 'shipping_frenet_delivery_time') ORDER BY \`key\`")
+	[ "$settings" = "$(printf 'shipping_frenet_additional_days=2\nshipping_frenet_delivery_time=1\nshipping_frenet_geo_zone_id=0\nshipping_frenet_postcode=01310-100\nshipping_frenet_tax_class_id=901\nshipping_frenet_token=%s' "$TOKEN")" ] || fail "the settings were saved as: $(tr '\n' ' ' <<< "$settings")"
+
+	echo "Running Playwright $PLAYWRIGHT_VERSION: Frenet limited to the Sao Paulo geo zone, with the customer in Rio de Janeiro"
+	sql "DELETE FROM oc_cart"
+	E2E_SCENARIO=geozone playwright @settings
+	[ "$(sql "SELECT value FROM oc_setting WHERE \`key\` = 'shipping_frenet_geo_zone_id'")" = 902 ] || fail "the geo zone was not saved"
+	sql "UPDATE oc_setting SET value = '0' WHERE \`key\` = 'shipping_frenet_geo_zone_id'"
 fi
 
 echo "Checking the order, the settings, the mock, the library and the logs"

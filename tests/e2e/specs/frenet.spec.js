@@ -10,6 +10,8 @@ const PRODUCT_ID = 40;
 const UNAVAILABLE = 'Frenet shipping is unavailable right now. Choose another delivery option or try again in a moment.';
 const NO_SERVICES = 'No Frenet delivery option serves this address.';
 const POSTCODE = 'Enter a valid postcode to see the Frenet delivery options.';
+const TOKEN_SAVED = 'Token saved. Leave blank to keep it.';
+const SAVE_ROUTE = /route=extension(\/|%2F)opencartfrenetv4(\/|%2F)shipping(\/|%2F)frenet(\||%7C|\.)save/;
 const REQUESTS = path.join(__dirname, '..', '.work', 'log', 'requests.jsonl');
 const SCENARIOS = {
 	slow: { error: UNAVAILABLE, limit: 2 * 2000 + 300 + 1000 },
@@ -110,9 +112,14 @@ const openSettings = async (page, token) => {
 	await expect(page.locator('#input-postcode')).toBeVisible();
 };
 
-const checkSettings = async (page, token, saved_token, testInfo) => {
+const checkSettings = async (page, token, migrated, testInfo) => {
 	await openSettings(page, token);
-	await expect(page.locator('#input-token')).toHaveValue(saved_token);
+	await expect(page.locator('#frenet-migrated')).toHaveCount(migrated ? 1 : 0);
+	await expect(page.locator('#frenet-token-required')).toHaveCount(0);
+	await expect(page.locator('#input-token')).toHaveValue('');
+	await expect(page.locator('#input-token')).toHaveAttribute('type', 'password');
+	await expect(page.locator('#input-token')).toHaveAttribute('placeholder', TOKEN_SAVED);
+	await expect(page.locator('#button-back')).toHaveAttribute('href', /route=marketplace(\/|%2F)extension.*type=shipping/);
 	await expect(page.locator('#frenet-version')).toHaveText(/3\.0\.0/);
 	await expect(page.locator('#input-timeout')).toHaveValue('5');
 	await expect(page.locator('#input-attempts')).toHaveValue('3');
@@ -126,21 +133,31 @@ const checkSettings = async (page, token, saved_token, testInfo) => {
 	await page.screenshot({ path: testInfo.outputPath('settings.png'), fullPage: true });
 };
 
+const saveSettings = async (page) => {
+	const saved = page.waitForResponse((response) => response.request().method() === 'POST' && SAVE_ROUTE.test(response.url()));
+
+	await page.locator('button[form="form-frenet"]').click();
+
+	const response = await saved;
+
+	expect(response.headers()['content-type']).toContain('application/json');
+
+	return response.json();
+};
+
 const saveDefaultMinimums = async (page, token, testInfo) => {
 	await openSettings(page, token);
 	await page.locator('#input-minimum-height').fill('0');
 	await page.locator('#input-default-weight').fill('0');
-
-	const saved = page.waitForResponse((response) => response.request().method() === 'POST' && /route=extension(\/|%2F)opencartfrenetv4(\/|%2F)shipping(\/|%2F)frenet/.test(response.url()));
-
-	await page.locator('button[form="form-frenet"]').click();
-	await saved;
+	await saveSettings(page);
+	await expect(page.locator('#alert .alert-success')).toContainText('Minimum height (cm) must be greater than zero: 2 used.');
+	await expect(page.locator('#input-minimum-height')).toHaveValue('2');
+	await expect(page.locator('#input-default-weight')).toHaveValue('1');
+	await page.screenshot({ path: testInfo.outputPath('settings-defaults.png'), fullPage: true });
 	await openSettings(page, token);
 	await expect(page.locator('#input-minimum-height')).toHaveValue('2');
 	await expect(page.locator('#input-default-weight')).toHaveValue('1');
 	await expect(page.locator('#input-minimum-width')).toHaveValue('11');
-	await expect(page.locator('#input-token')).toHaveValue('single-service');
-	await page.screenshot({ path: testInfo.outputPath('settings-defaults.png'), fullPage: true });
 };
 
 const startCheckout = async (page, products = [[PRODUCT_ID, 1]], coupon = '') => {
@@ -189,6 +206,7 @@ const showShippingMethods = async (page) => {
 	if (modal) {
 		return {
 			milliseconds,
+			list: page.locator('#modal-shipping'),
 			frenet: page.locator('#modal-shipping label[for^="input-shipping-method-frenet-"]'),
 			error: page.locator('#modal-shipping .alert-danger'),
 			others: page.locator('#modal-shipping input[name=shipping_method]:not([value^="frenet."])')
@@ -197,6 +215,7 @@ const showShippingMethods = async (page) => {
 
 	return {
 		milliseconds,
+		list: page.locator('#input-shipping-method'),
 		frenet: page.locator('#input-shipping-method option[value^="frenet."]'),
 		error: page.locator('#input-shipping-method optgroup[label="Frenet"] option[disabled]'),
 		others: page.locator('#input-shipping-method option[value*="."]:not([value^="frenet."])')
@@ -291,7 +310,7 @@ test('@install installs the package, shows the version, quotes a single service 
 		await page.screenshot({ path: testInfo.outputPath('installer.png'), fullPage: true });
 	});
 	await test.step('Extensions > Extensions > Shipping installs Frenet', () => installShipping(page, token));
-	await test.step('The settings show the token and the module version', () => checkSettings(page, token, 'single-service', testInfo));
+	await test.step('The settings show the token and the module version', () => checkSettings(page, token, false, testInfo));
 	await test.step('A minimum height and a default weight saved as zero go back to the defaults', () => saveDefaultMinimums(page, token, testInfo));
 	await test.step('Checkout offers the only Frenet service and places the order', async () => {
 		name = await checkout(page, 1, testInfo);
@@ -324,7 +343,7 @@ test('@upgrade quotes with the token of version 1.0.0 before the settings are op
 		name = await checkout(page, 2, testInfo);
 	});
 
-	await test.step('The settings show the token moved to the new key and the module version', () => checkSettings(page, token, 'e2e-token', testInfo));
+	await test.step('The settings show the token moved to the new key and the module version', () => checkSettings(page, token, true, testInfo));
 	await test.step('The order keeps the Frenet shipping', () => checkOrder(page, token, name, testInfo));
 
 	expect(errors).toEqual([]);
@@ -401,5 +420,99 @@ test('@items sends to Frenet the shipped items of the cart in kilograms and cent
 	expect(body.ShipmentInvoiceValue).toBe(expected.invoice);
 	expect(body.Coupom).toBe(expected.coupon);
 	expect(body.RecipientCEP).toBe('20040020');
+	expect(errors).toEqual([]);
+});
+
+const SETTINGS = {
+	invalid: {
+		fill: { '#input-postcode': '0131', '#input-token': '' },
+		status: '1',
+		errors: {
+			'#error-postcode': 'The origin postcode must have 8 digits, such as 01310-100.',
+			'#error-token': 'Enter the token generated in the Frenet panel to enable the shipping.'
+		}
+	},
+	valid: {
+		fill: { '#input-postcode': '01310100', '#input-token': 'single-service', '#input-msg-prazo': '', '#input-additional-days': '2' },
+		status: '1',
+		delivery_time: '1',
+		tax_class: 'Frenet E2E',
+		geo_zone: '0',
+		postcode: '01310-100',
+		frenet: [/^SEDEX - Average 5 day\(s\) - \$46\.75/]
+	},
+	geozone: {
+		fill: {},
+		geo_zone_name: 'Sao Paulo E2E',
+		frenet: []
+	}
+};
+
+test('@settings saves the settings by AJAX, validates them and applies the tax, delivery time and geo zone at checkout', async ({ page }, testInfo) => {
+	const scenario = process.env.E2E_SCENARIO || '';
+	const expected = SETTINGS[scenario];
+
+	test.skip(!scenario, 'no scenario');
+	expect(expected, `unknown scenario ${scenario}`).toBeDefined();
+
+	const errors = watch(page);
+	const token = await login(page);
+
+	await openSettings(page, token);
+
+	for (const [selector, value] of Object.entries(expected.fill)) {
+		await page.locator(selector).fill(value);
+	}
+
+	if (expected.status) await page.locator('#input-status').selectOption(expected.status);
+	if (expected.delivery_time) await page.locator('#input-delivery-time').selectOption(expected.delivery_time);
+	if (expected.tax_class) await page.locator('#input-tax-class').selectOption({ label: expected.tax_class });
+	if (expected.geo_zone) await page.locator('#input-geo-zone').selectOption(expected.geo_zone);
+	if (expected.geo_zone_name) await page.locator('#input-geo-zone').selectOption({ label: expected.geo_zone_name });
+
+	const json = await saveSettings(page);
+
+	if (expected.errors) {
+		expect(json.success).toBeUndefined();
+		await expect(page.locator('#alert .alert-danger')).toContainText('the settings were not saved');
+
+		for (const [selector, text] of Object.entries(expected.errors)) {
+			await expect(page.locator(selector)).toHaveText(text);
+			await expect(page.locator(selector.replace('#error-', '#input-'))).toHaveClass(/is-invalid/);
+		}
+
+		await page.screenshot({ path: testInfo.outputPath(`settings-${scenario}.png`), fullPage: true });
+		expect(errors).toEqual([]);
+
+		return;
+	}
+
+	await expect(page.locator('#alert .alert-success')).toBeVisible();
+	await expect(page.locator('#input-token')).toHaveValue('');
+	if (expected.postcode) await expect(page.locator('#input-postcode')).toHaveValue(expected.postcode);
+	await page.screenshot({ path: testInfo.outputPath(`settings-${scenario}.png`), fullPage: true });
+
+	await openSettings(page, token);
+	await expect(page.locator('#input-token')).toHaveAttribute('placeholder', TOKEN_SAVED);
+	await expect(page.locator('#frenet-token-required')).toHaveCount(0);
+	if (expected.tax_class) await expect(page.locator('#input-tax-class option:checked')).toHaveText(expected.tax_class);
+
+	await startCheckout(page);
+
+	const block = await showShippingMethods(page);
+
+	await expect(block.others.first()).toBeAttached({ timeout: 60000 });
+	await expect(block.frenet).toHaveCount(expected.frenet.length);
+
+	for (const [index, name] of expected.frenet.entries()) {
+		await expect(block.frenet.nth(index)).toHaveText(name);
+	}
+
+	if (expected.frenet.length === 0) {
+		await expect(block.error).toHaveCount(0);
+		await expect(block.list).not.toContainText('Frenet');
+	}
+
+	await page.screenshot({ path: testInfo.outputPath(`checkout-${scenario}.png`), fullPage: true });
 	expect(errors).toEqual([]);
 });
