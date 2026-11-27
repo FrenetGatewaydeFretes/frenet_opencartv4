@@ -67,6 +67,11 @@ class Config {
 	 */
 	public const DEFAULT_WEIGHT = 1.0;
 
+	/**
+	 * @var int
+	 */
+	public const SIMULATOR_LIMIT_DEFAULT = 60;
+
 	public function __construct(private CoreConfig $config) {}
 
 	/**
@@ -215,6 +220,28 @@ class Config {
 	 */
 	public function getAttempts(): int {
 		return $this->getInRange('attempts', self::ATTEMPTS_DEFAULT, self::ATTEMPTS_MIN, self::ATTEMPTS_MAX);
+	}
+
+	/**
+	 * Whether the product page shows the shipping simulator, on until the store owner turns it off.
+	 *
+	 * @return bool
+	 */
+	public function isSimulatorEnabled(): bool {
+		$value = $this->get('simulator');
+
+		return $value === '' || (bool)$value;
+	}
+
+	/**
+	 * Simulator quotes each IP may ask per minute, 0 for no limit.
+	 *
+	 * @return int
+	 */
+	public function getSimulatorLimit(): int {
+		$value = $this->get('simulator_limit');
+
+		return is_numeric($value) ? max(0, (int)$value) : self::SIMULATOR_LIMIT_DEFAULT;
 	}
 
 	/**

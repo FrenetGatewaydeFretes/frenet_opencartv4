@@ -116,6 +116,28 @@ final class ConfigTest extends TestCase {
 		self::assertSame(0, $config->getGeoZoneId());
 	}
 
+	public function testShowsTheSimulatorWithTheDefaultLimitWhenNothingIsSaved(): void {
+		$config = $this->createConfig([]);
+
+		self::assertTrue($config->isSimulatorEnabled());
+		self::assertSame(Config::SIMULATOR_LIMIT_DEFAULT, $config->getSimulatorLimit());
+	}
+
+	public function testReadsTheSimulatorSettings(): void {
+		$config = $this->createConfig(['shipping_frenet_simulator' => '0', 'shipping_frenet_simulator_limit' => '0']);
+
+		self::assertFalse($config->isSimulatorEnabled());
+		self::assertSame(0, $config->getSimulatorLimit());
+		self::assertTrue($this->createConfig(['shipping_frenet_simulator' => '1'])->isSimulatorEnabled());
+		self::assertSame(15, $this->createConfig(['shipping_frenet_simulator_limit' => '15'])->getSimulatorLimit());
+	}
+
+	#[TestWith(['-5', 0], 'negative')]
+	#[TestWith(['abc', Config::SIMULATOR_LIMIT_DEFAULT], 'text')]
+	public function testNeverReadsANegativeSimulatorLimit(string $saved, int $limit): void {
+		self::assertSame($limit, $this->createConfig(['shipping_frenet_simulator_limit' => $saved])->getSimulatorLimit());
+	}
+
 	public function testReadsTheUnitClassesTheStoreOwnerMapped(): void {
 		$config = $this->createConfig(['shipping_frenet_weight_class_id' => '5', 'shipping_frenet_length_class_id' => '3']);
 
