@@ -57,7 +57,7 @@ final class ParserTest extends TestCase {
 		self::assertSame(['03220', 'F_3'], array_map(static fn (Service $service): string => $service->getCode(), $services));
 		self::assertSame(3, $services[0]->getDeliveryTime());
 		self::assertSame(0, $services[1]->getDeliveryTime());
-		self::assertSame('Jadlog Package', $services[1]->getTitle('%s - em até %d dia(s)'));
+		self::assertSame('Jadlog Package', $services[1]->getTitle('%s - em até %d dia(s)', 0));
 	}
 
 	public function testKeepsTheMessageOfAnAnswerWithoutServices(): void {

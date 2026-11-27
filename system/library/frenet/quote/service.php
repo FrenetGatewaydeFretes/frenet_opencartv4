@@ -44,19 +44,21 @@ class Service {
 	}
 
 	/**
-	 * Name shown at checkout: the template with %s for the service and %d for the days, or the service alone without a template or a delivery time.
+	 * Name shown at checkout: the template with %s for the service and %d for the days plus the additional ones.
 	 *
 	 * @param string $template
+	 * @param int    $additional_days
 	 *
 	 * @return string
 	 */
-	public function getTitle(string $template): string {
+	public function getTitle(string $template, int $additional_days): string {
 		$description = htmlspecialchars($this->description, ENT_COMPAT, 'UTF-8');
+		$days = $this->delivery_time + max(0, $additional_days);
 
-		if ($template === '' || $this->delivery_time < 1) {
+		if ($template === '' || $days < 1) {
 			return $description;
 		}
 
-		return strtr($template, ['%s' => $description, '%d' => (string)$this->delivery_time]);
+		return strtr($template, ['%s' => $description, '%d' => (string)$days]);
 	}
 }

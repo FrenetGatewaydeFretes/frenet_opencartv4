@@ -3,6 +3,7 @@ namespace Opencart\Catalog\Model\Extension\Opencartfrenetv4\Shipping;
 
 use Frenet\Api;
 use Frenet\Config as FrenetConfig;
+use Frenet\GeoZone;
 use Frenet\Http\Client;
 use Frenet\Log as FrenetLog;
 use Frenet\Platform;
@@ -32,6 +33,10 @@ class Frenet extends Model {
 
 		$config = new FrenetConfig($this->config);
 		$log = new FrenetLog(new CoreLog(FrenetLog::FILENAME), $config->isDebug());
+
+		if (!$this->isInGeoZone($config->getGeoZoneId(), $address, $log)) {
+			return [];
+		}
 
 		if ($config->getToken() === '') {
 			$log->error('Quote skipped: the token is not configured', ['postcode' => $address['postcode'] ?? '']);
@@ -76,7 +81,9 @@ class Frenet extends Model {
 			return $this->getMethod($config, [], $this->language->get('error_no_services'));
 		}
 
-		return $this->getMethod($config, $this->getOptions($result->getServices(), $config->getDeliveryTimeMessage()), false);
+		$template = $config->isDeliveryTimeShown() ? ($config->getDeliveryTimeMessage() ?: $this->language->get('text_delivery_time')) : '';
+
+		return $this->getMethod($config, $this->getOptions($result->getServices(), $template, $config->getAdditionalDays(), $config->getTaxClassId()), false);
 	}
 
 	/**
@@ -106,26 +113,57 @@ class Frenet extends Model {
 	 *
 	 * @param array<int, Service> $services
 	 * @param string              $template
+	 * @param int                 $additional_days
+	 * @param int                 $tax_class_id
 	 *
 	 * @return array<string, array<string, mixed>>
 	 */
-	private function getOptions(array $services, string $template): array {
+	private function getOptions(array $services, string $template, int $additional_days, int $tax_class_id): array {
 		$options = [];
 
 		foreach ($services as $service) {
-			$name = $service->getTitle($template);
+			$name = $service->getTitle($template, $additional_days);
 
 			$options[$service->getCode()] = [
 				'code'         => 'frenet.' . $service->getCode(),
 				'title'        => $name,
 				'name'         => $name,
 				'cost'         => $service->getPrice(),
-				'tax_class_id' => 0,
-				'text'         => $this->currency->format($this->tax->calculate($service->getPrice(), 0, (bool)$this->config->get('config_tax')), $this->session->data['currency'])
+				'tax_class_id' => $tax_class_id,
+				'text'         => $this->currency->format($this->tax->calculate($service->getPrice(), $tax_class_id, (bool)$this->config->get('config_tax')), $this->session->data['currency'])
 			];
 		}
 
 		return $options;
+	}
+
+	/**
+	 * Whether Frenet serves the address: any address without a geo zone, otherwise only the ones inside it.
+	 *
+	 * @param int                  $geo_zone_id
+	 * @param array<string, mixed> $address
+	 * @param FrenetLog            $log
+	 *
+	 * @return bool
+	 */
+	private function isInGeoZone(int $geo_zone_id, array $address, FrenetLog $log): bool {
+		if ($geo_zone_id === 0) {
+			return true;
+		}
+
+		$geo_zone = new GeoZone($this->db, DB_PREFIX);
+
+		if ($geo_zone->contains($geo_zone_id, $address)) {
+			return true;
+		}
+
+		if ($geo_zone->exists($geo_zone_id)) {
+			$log->debug('Quote skipped: the address is outside the Frenet geo zone', ['country_id' => $address['country_id'] ?? 0, 'zone_id' => $address['zone_id'] ?? 0]);
+		} else {
+			$log->error('Quote skipped: the geo zone ' . $geo_zone_id . ' chosen for Frenet no longer exists, choose another one in the settings');
+		}
+
+		return false;
 	}
 
 	/**

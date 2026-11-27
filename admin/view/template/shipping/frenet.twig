@@ -1,156 +1,171 @@
-{{ header }} {{ column_left }}
+{{ header }}{{ column_left }}
 <div id="content">
   <div class="page-header">
     <div class="container-fluid">
       <div class="float-end">
-        <button type="submit" form="form-frenet" data-bs-toggle="tooltip" title="{{ button_save }}" class="btn btn-primary"><i class="fa-solid fa-save"></i></button>
-        <a href="{{ back }}" data-bs-toggle="tooltip" title="{{ button_back }}" class="btn btn-light"><i class="fa-solid fa-reply"></i></a>
+        <button type="submit" form="form-frenet" data-bs-toggle="tooltip" title="{{ button_save|escape }}" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i></button>
+        <a href="{{ back }}" data-bs-toggle="tooltip" title="{{ button_back|escape }}" class="btn btn-light" id="button-back"><i class="fa-solid fa-reply"></i></a>
       </div>
       <h1>{{ heading_title }}</h1>
       <ol class="breadcrumb">
         {% for breadcrumb in breadcrumbs %}
-         <li class="breadcrumb-item">
-          <a href="{{ breadcrumb.href }}">{{ breadcrumb.text }}</a>
-         </li>
+        <li class="breadcrumb-item"><a href="{{ breadcrumb.href }}">{{ breadcrumb.text|escape }}</a></li>
         {% endfor %}
-      </ul>
+      </ol>
     </div>
   </div>
   <div class="container-fluid">
-    {% if error_warning %} 
-    <div class="alert alert-danger"><i class="fa fa-exclamation-circle"></i> {{ error_warning }}
-      <button type="button" class="close" data-dismiss="alert">&times</button>
-    </div>
-    {% endif %}    
+    {% if migrated %}
+    <div class="alert alert-info alert-dismissible" id="frenet-migrated"><i class="fa-solid fa-circle-info"></i> {{ text_migrated }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+    {% endif %}
+    {% if not token_saved %}
+    <div class="alert alert-warning" id="frenet-token-required"><i class="fa-solid fa-triangle-exclamation"></i> {{ text_token_required }} <a href="{{ panel_url|escape }}" target="_blank" rel="noopener noreferrer">{{ text_panel }}</a></div>
+    {% endif %}
+    {% if geo_zone_missing %}
+    <div class="alert alert-warning" id="frenet-geo-zone-missing"><i class="fa-solid fa-triangle-exclamation"></i> {{ text_geo_zone_missing }}</div>
+    {% endif %}
     <div class="card">
-      <div class="card-header">
-          <i class="fa-solid fa-pencil"></i>
-          {{ text_edit }}
-      </div>
-
+      <div class="card-header"><i class="fa-solid fa-pencil"></i> {{ text_edit }}</div>
       <div class="card-body">
-        <form action="{{ action }}" method="post" id="form-frenet" data-oc-toggle="ajax">
-          <div class="row mb-3">
-            <label class="col-sm-2 col-form-label" for="input-postcode">{{ entry_postcode }}</label>
+        <form id="form-frenet" action="{{ save }}" method="post" data-oc-toggle="ajax">
+          <div class="row mb-3 required">
+            <label for="input-token" class="col-sm-2 col-form-label">{{ entry_token }}</label>
             <div class="col-sm-10">
-              <input type="text" name="shipping_frenet_postcode" value="{{shipping_frenet_postcode }}" placeholder="{{ entry_postcode }}" id="input-postcode" class="form-control" />
-              {% if  (error_postcode)  %} 
-              <div class="text-danger">{{ error_postcode }}</div>
-              {% endif %}
+              <input type="password" name="shipping_frenet_token" value="" placeholder="{{ (token_saved ? text_token_saved : entry_token)|escape }}" id="input-token" class="form-control" autocomplete="new-password"/>
+              <div id="error-token" class="invalid-feedback"></div>
+              <div class="form-text">{{ help_token }}</div>
+            </div>
+          </div>
+          <div class="row mb-3 required">
+            <label for="input-postcode" class="col-sm-2 col-form-label">{{ entry_postcode }}</label>
+            <div class="col-sm-10">
+              <input type="text" name="shipping_frenet_postcode" value="{{ shipping_frenet_postcode|escape }}" placeholder="01310-100" id="input-postcode" class="form-control" inputmode="numeric"/>
+              <div id="error-postcode" class="invalid-feedback"></div>
+              <div class="form-text">{{ help_postcode }}</div>
             </div>
           </div>
           <div class="row mb-3">
-            <label class="col-sm-2 col-form-label" for="input-msg_prazo">{{ entry_msg_prazo }} </label>
+            <label for="input-status" class="col-sm-2 col-form-label">{{ entry_status }}</label>
             <div class="col-sm-10">
-              <input type="text" name="shipping_frenet_msg_prazo" value="{{shipping_frenet_msg_prazo }}" placeholder="{{ help_msg_prazo }}" id="input-msg_prazo" class="form-control" />
-            </div>
-          </div>
-          <div class="row mb-3">
-            <label class="col-sm-2 col-form-label" for="input-token"><span data-toggle="tooltip" title="{{ help_frenet_token }} ">{{ entry_frenet_key }} </span></label>
-            <div class="col-sm-10">
-              <div class="row">
-                <div class="col-sm-4">
-                  <input type="text" name="shipping_frenet_token" value="{{ shipping_frenet_token }}" placeholder="{{ entry_frenet_key_token }} " id="input-token" class="form-control" />
-                </div>
-                <div class="col-sm-4">
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="row mb-3">
-            <label class="col-sm-2 col-form-label" for="input-status">{{ entry_status }}</label>
-            <div class="col-sm-10">
-              <select name="shipping_frenet_status" id="input-status" class="form-control">
-                {% if shipping_frenet_status %} 
-                <option value="1" selected="selected">{{ text_enabled }}</option>
-                <option value="0">{{ text_disabled }}</option>
-                {% else %}
-                <option value="1">{{ text_enabled }}</option>
-                <option value="0" selected="selected">{{ text_disabled }}</option>
-                {% endif %}
+              <select name="shipping_frenet_status" id="input-status" class="form-select">
+                <option value="1"{% if shipping_frenet_status %} selected{% endif %}>{{ text_enabled }}</option>
+                <option value="0"{% if not shipping_frenet_status %} selected{% endif %}>{{ text_disabled }}</option>
               </select>
             </div>
           </div>
           <div class="row mb-3">
-            <label class="col-sm-2 col-form-label" for="input-weight-class">{{ entry_weight_class }}</label>
+            <label for="input-delivery-time" class="col-sm-2 col-form-label">{{ entry_delivery_time }}</label>
+            <div class="col-sm-10">
+              <select name="shipping_frenet_delivery_time" id="input-delivery-time" class="form-select">
+                <option value="1"{% if shipping_frenet_delivery_time %} selected{% endif %}>{{ text_yes }}</option>
+                <option value="0"{% if not shipping_frenet_delivery_time %} selected{% endif %}>{{ text_no }}</option>
+              </select>
+              <div class="form-text">{{ help_delivery_time }}</div>
+            </div>
+          </div>
+          <div class="row mb-3">
+            <label for="input-msg-prazo" class="col-sm-2 col-form-label">{{ entry_msg_prazo }}</label>
+            <div class="col-sm-10">
+              <input type="text" name="shipping_frenet_msg_prazo" value="{{ shipping_frenet_msg_prazo|escape }}" placeholder="{{ placeholder_msg_prazo|escape }}" id="input-msg-prazo" class="form-control"/>
+              <div class="form-text">{{ help_msg_prazo }}</div>
+            </div>
+          </div>
+          <div class="row mb-3">
+            <label for="input-additional-days" class="col-sm-2 col-form-label">{{ entry_additional_days }}</label>
+            <div class="col-sm-10">
+              <input type="number" name="shipping_frenet_additional_days" value="{{ shipping_frenet_additional_days|escape }}" min="0" step="1" id="input-additional-days" class="form-control"/>
+              <div class="form-text">{{ help_additional_days }}</div>
+            </div>
+          </div>
+          <div class="row mb-3">
+            <label for="input-tax-class" class="col-sm-2 col-form-label">{{ entry_tax_class }}</label>
+            <div class="col-sm-10">
+              <select name="shipping_frenet_tax_class_id" id="input-tax-class" class="form-select">
+                <option value="0">{{ text_none }}</option>
+                {% for tax_class in tax_classes %}
+                <option value="{{ tax_class.tax_class_id|escape }}"{% if tax_class.tax_class_id == shipping_frenet_tax_class_id %} selected{% endif %}>{{ tax_class.title|escape }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="row mb-3">
+            <label for="input-geo-zone" class="col-sm-2 col-form-label">{{ entry_geo_zone }}</label>
+            <div class="col-sm-10">
+              <select name="shipping_frenet_geo_zone_id" id="input-geo-zone" class="form-select">
+                <option value="0">{{ text_all_zones }}</option>
+                {% for geo_zone in geo_zones %}
+                <option value="{{ geo_zone.geo_zone_id|escape }}"{% if geo_zone.geo_zone_id == shipping_frenet_geo_zone_id %} selected{% endif %}>{{ geo_zone.name|escape }}</option>
+                {% endfor %}
+              </select>
+              <div class="form-text">{{ help_geo_zone }}</div>
+            </div>
+          </div>
+          <div class="row mb-3">
+            <label for="input-weight-class" class="col-sm-2 col-form-label">{{ entry_weight_class }}</label>
             <div class="col-sm-10">
               <select name="shipping_frenet_weight_class_id" id="input-weight-class" class="form-select">
                 <option value="0">{{ text_select }}</option>
                 {% for weight_class in weight_classes %}
-                <option value="{{ weight_class.weight_class_id }}"{% if weight_class.weight_class_id == shipping_frenet_weight_class_id %} selected="selected"{% endif %}>{{ weight_class.title|escape }}</option>
+                <option value="{{ weight_class.weight_class_id|escape }}"{% if weight_class.weight_class_id == shipping_frenet_weight_class_id %} selected{% endif %}>{{ weight_class.title|escape }}</option>
                 {% endfor %}
               </select>
               <div class="form-text">{{ help_weight_class }}</div>
             </div>
           </div>
           <div class="row mb-3">
-            <label class="col-sm-2 col-form-label" for="input-length-class">{{ entry_length_class }}</label>
+            <label for="input-length-class" class="col-sm-2 col-form-label">{{ entry_length_class }}</label>
             <div class="col-sm-10">
               <select name="shipping_frenet_length_class_id" id="input-length-class" class="form-select">
                 <option value="0">{{ text_select }}</option>
                 {% for length_class in length_classes %}
-                <option value="{{ length_class.length_class_id }}"{% if length_class.length_class_id == shipping_frenet_length_class_id %} selected="selected"{% endif %}>{{ length_class.title|escape }}</option>
+                <option value="{{ length_class.length_class_id|escape }}"{% if length_class.length_class_id == shipping_frenet_length_class_id %} selected{% endif %}>{{ length_class.title|escape }}</option>
                 {% endfor %}
               </select>
               <div class="form-text">{{ help_length_class }}</div>
             </div>
           </div>
+          {% for field in [
+            {'key': 'minimum_height', 'id': 'minimum-height', 'value': shipping_frenet_minimum_height, 'label': entry_minimum_height, 'help': help_minimum_height},
+            {'key': 'minimum_width', 'id': 'minimum-width', 'value': shipping_frenet_minimum_width, 'label': entry_minimum_width, 'help': help_minimum_width},
+            {'key': 'minimum_length', 'id': 'minimum-length', 'value': shipping_frenet_minimum_length, 'label': entry_minimum_length, 'help': help_minimum_length},
+            {'key': 'default_weight', 'id': 'default-weight', 'value': shipping_frenet_default_weight, 'label': entry_default_weight, 'help': help_default_weight}
+          ] %}
           <div class="row mb-3">
-            <label class="col-sm-2 col-form-label" for="input-minimum-height">{{ entry_minimum_height }}</label>
+            <label for="input-{{ field.id }}" class="col-sm-2 col-form-label">{{ field.label }}</label>
             <div class="col-sm-10">
-              <input type="number" name="shipping_frenet_minimum_height" value="{{ shipping_frenet_minimum_height|escape }}" min="0" step="any" required id="input-minimum-height" class="form-control"/>
-              <div class="form-text">{{ help_minimum_height }}</div>
+              <input type="number" name="shipping_frenet_{{ field.key }}" value="{{ field.value|escape }}" min="0" step="any" id="input-{{ field.id }}" class="form-control"/>
+              <div class="form-text">{{ field.help }}</div>
             </div>
           </div>
+          {% endfor %}
           <div class="row mb-3">
-            <label class="col-sm-2 col-form-label" for="input-minimum-width">{{ entry_minimum_width }}</label>
+            <label for="input-timeout" class="col-sm-2 col-form-label">{{ entry_timeout }}</label>
             <div class="col-sm-10">
-              <input type="number" name="shipping_frenet_minimum_width" value="{{ shipping_frenet_minimum_width|escape }}" min="0" step="any" required id="input-minimum-width" class="form-control"/>
-              <div class="form-text">{{ help_minimum_width }}</div>
-            </div>
-          </div>
-          <div class="row mb-3">
-            <label class="col-sm-2 col-form-label" for="input-minimum-length">{{ entry_minimum_length }}</label>
-            <div class="col-sm-10">
-              <input type="number" name="shipping_frenet_minimum_length" value="{{ shipping_frenet_minimum_length|escape }}" min="0" step="any" required id="input-minimum-length" class="form-control"/>
-              <div class="form-text">{{ help_minimum_length }}</div>
-            </div>
-          </div>
-          <div class="row mb-3">
-            <label class="col-sm-2 col-form-label" for="input-default-weight">{{ entry_default_weight }}</label>
-            <div class="col-sm-10">
-              <input type="number" name="shipping_frenet_default_weight" value="{{ shipping_frenet_default_weight|escape }}" min="0" step="any" required id="input-default-weight" class="form-control"/>
-              <div class="form-text">{{ help_default_weight }}</div>
-            </div>
-          </div>
-          <div class="row mb-3">
-            <label class="col-sm-2 col-form-label" for="input-timeout">{{ entry_timeout }}</label>
-            <div class="col-sm-10">
-              <input type="number" name="shipping_frenet_timeout" value="{{ shipping_frenet_timeout|escape }}" min="{{ timeout_min }}" max="{{ timeout_max }}" step="1" required id="input-timeout" class="form-control"/>
+              <input type="number" name="shipping_frenet_timeout" value="{{ shipping_frenet_timeout|escape }}" min="{{ timeout_min }}" max="{{ timeout_max }}" step="1" id="input-timeout" class="form-control"/>
               <div class="form-text">{{ help_timeout }}</div>
             </div>
           </div>
           <div class="row mb-3">
-            <label class="col-sm-2 col-form-label" for="input-attempts">{{ entry_attempts }}</label>
+            <label for="input-attempts" class="col-sm-2 col-form-label">{{ entry_attempts }}</label>
             <div class="col-sm-10">
-              <input type="number" name="shipping_frenet_attempts" value="{{ shipping_frenet_attempts|escape }}" min="{{ attempts_min }}" max="{{ attempts_max }}" step="1" required id="input-attempts" class="form-control"/>
+              <input type="number" name="shipping_frenet_attempts" value="{{ shipping_frenet_attempts|escape }}" min="{{ attempts_min }}" max="{{ attempts_max }}" step="1" id="input-attempts" class="form-control"/>
               <div class="form-text">{{ help_attempts }}</div>
             </div>
           </div>
           <div class="row mb-3">
-            <label class="col-sm-2 col-form-label" for="input-debug">{{ entry_debug }}</label>
+            <label for="input-debug" class="col-sm-2 col-form-label">{{ entry_debug }}</label>
             <div class="col-sm-10">
               <select name="shipping_frenet_debug" id="input-debug" class="form-select">
-                <option value="1"{% if shipping_frenet_debug %} selected="selected"{% endif %}>{{ text_enabled }}</option>
-                <option value="0"{% if not shipping_frenet_debug %} selected="selected"{% endif %}>{{ text_disabled }}</option>
+                <option value="1"{% if shipping_frenet_debug %} selected{% endif %}>{{ text_enabled }}</option>
+                <option value="0"{% if not shipping_frenet_debug %} selected{% endif %}>{{ text_disabled }}</option>
               </select>
               <div class="form-text">{{ help_debug }}</div>
             </div>
           </div>
           <div class="row mb-3">
-            <label class="col-sm-2 col-form-label" for="input-sort-order">{{ entry_sort_order }}</label>
+            <label for="input-sort-order" class="col-sm-2 col-form-label">{{ entry_sort_order }}</label>
             <div class="col-sm-10">
-              <input type="text" name="shipping_frenet_sort_order" value="{{ shipping_frenet_sort_order }}" placeholder="{{ entry_sort_order }}" id="input-sort-order" class="form-control" />
+              <input type="number" name="shipping_frenet_sort_order" value="{{ shipping_frenet_sort_order|escape }}" step="1" id="input-sort-order" class="form-control"/>
             </div>
           </div>
         </form>

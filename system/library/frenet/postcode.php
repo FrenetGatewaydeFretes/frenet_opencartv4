@@ -30,6 +30,19 @@ final class Postcode {
 	}
 
 	/**
+	 * Postcode as 00000-000, accepting dots, hyphens and spaces, or null when it does not have 8 digits.
+	 *
+	 * @param string $postcode
+	 *
+	 * @return string|null
+	 */
+	public static function format(string $postcode): ?string {
+		$digits = self::getDigits($postcode);
+
+		return $digits !== '' ? substr($digits, 0, 5) . '-' . substr($digits, 5) : null;
+	}
+
+	/**
 	 * Whether the Frenet API can quote the address: a postcode with 8 digits in Brazil, any postcode in other countries.
 	 *
 	 * @param string $postcode
