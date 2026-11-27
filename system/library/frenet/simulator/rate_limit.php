@@ -6,7 +6,7 @@ use Opencart\System\Library\DB;
 use Throwable;
 
 /**
- * Counts the simulator quotes of each IP in a table of its own and blocks the ones above the limit of the admin per minute.
+ * Counts the simulator quotes of each IP in a table of its own and blocks the ones above the limit per minute.
  */
 final class RateLimit {
 	/**
@@ -145,7 +145,7 @@ final class RateLimit {
 	}
 
 	/**
-	 * Now and then, when an IP starts a minute, removes by key a few IPs whose minute ended, read from a random point of the key.
+	 * Now and then, when an IP starts a minute, removes by key a few IPs whose minute ended, from a random point.
 	 *
 	 * @param int $now
 	 *

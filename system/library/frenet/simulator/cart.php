@@ -6,7 +6,7 @@ use Opencart\System\Library\Cart\Cart as CoreCart;
 use Opencart\System\Library\DB;
 
 /**
- * Builds the page product as the core cart of the store would hold it alone, with the price, options and weight of the cart.
+ * Builds the page product as the core cart would hold it alone, with the price, options and weight of the cart.
  */
 final class Cart {
 	/**

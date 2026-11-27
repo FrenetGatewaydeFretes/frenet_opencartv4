@@ -2,7 +2,7 @@
 namespace Frenet\Simulator;
 
 /**
- * Tells a quote sent by the browser from another site, which the store page never sends, by the Origin and Sec-Fetch-Site headers.
+ * Tells a quote the browser sent from another site, never from the store page, by the Origin and Sec-Fetch-Site headers.
  */
 final class Origin {
 	/**

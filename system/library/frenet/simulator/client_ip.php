@@ -2,7 +2,7 @@
 namespace Frenet\Simulator;
 
 /**
- * Finds the IP of the visitor, also behind Cloudflare or a proxy of the store network, where every request has the same address.
+ * Finds the IP of the visitor, also behind Cloudflare or a proxy of the store, where every request has one address.
  */
 final class ClientIp {
 	/**
@@ -59,7 +59,7 @@ final class ClientIp {
 	];
 
 	/**
-	 * IP of the visitor: the last public X-Forwarded-For behind a proxy of the store network, CF-Connecting-IP from Cloudflare.
+	 * IP of the visitor: the last public X-Forwarded-For behind a proxy of the store, CF-Connecting-IP from Cloudflare.
 	 *
 	 * @param array<string, mixed> $server
 	 *

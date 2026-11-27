@@ -80,7 +80,7 @@ class Frenet extends Controller {
 	}
 
 	/**
-	 * Postcode of the buyer for the simulator field: the shipping address of the session, else the default address of the customer.
+	 * Postcode for the simulator field: the shipping address of the session, else the default address of the customer.
 	 *
 	 * @return void
 	 */

@@ -5,7 +5,7 @@ use Opencart\System\Library\DB;
 use stdClass;
 
 /**
- * Database of the store with a cart table that holds only the page product, so the core cart reads it and never writes the real one.
+ * Store database with a cart table holding only the page product, so the core cart reads it and never writes.
  */
 final class CartTable {
 	/**

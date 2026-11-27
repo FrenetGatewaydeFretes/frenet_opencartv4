@@ -58,7 +58,7 @@ class Frenet extends Model {
 	}
 
 	/**
-	 * Shipping address of a Brazilian postcode with the country and state of the store, as the cart shipping estimate builds it.
+	 * Shipping address of a Brazilian postcode, with the country and the state, as the cart shipping estimate builds it.
 	 *
 	 * @param string $postcode
 	 * @param string $state
@@ -106,7 +106,7 @@ class Frenet extends Model {
 	}
 
 	/**
-	 * Frenet shipping method for the products, at checkout or in the simulator, where API answer problems go to the log only in debug.
+	 * Frenet method for the products at checkout or in the simulator, which logs answer problems only in debug.
 	 *
 	 * @param array<string, mixed>                    $address
 	 * @param array<int|string, array<string, mixed>> $products
@@ -171,7 +171,7 @@ class Frenet extends Model {
 	}
 
 	/**
-	 * Logs a problem of the API answer as an error at checkout and only in debug for the simulator, which buyers call far more.
+	 * Logs an API answer problem as an error at checkout and only in debug for the simulator, which buyers call more.
 	 *
 	 * @param FrenetLog            $log
 	 * @param bool                 $simulation

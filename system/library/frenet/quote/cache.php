@@ -49,7 +49,7 @@ class Cache {
 	}
 
 	/**
-	 * Keeps the answer for TTL seconds unless read-only, also inside the entry, as the file cache of 4.0.2.x returns expired files.
+	 * Keeps the answer for TTL seconds unless read-only, also in the entry, as the 4.0.2.x file cache returns expired files.
 	 *
 	 * @param string $key
 	 * @param string $body
