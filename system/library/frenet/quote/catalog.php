@@ -17,7 +17,7 @@ class Catalog {
 	 */
 	private const SKU_CODE = 'SKU';
 
-	public function __construct(private DB $db, private string $prefix, private int $language_id, private int $store_id) {}
+	public function __construct(private DB $db, private string $prefix, private int $language_id, private int $store_id, private bool $sku_in_product_code) {}
 
 	/**
 	 * SKU, or the model when the product has none, and the names of the enabled categories of this store joined by |.
@@ -33,31 +33,24 @@ class Catalog {
 			return [];
 		}
 
-		[$has_sku_column, $has_code_table] = $this->findSkuSources();
-
 		$products = [];
 
-		foreach ($this->getRows("SELECT `product_id`, `model`" . ($has_sku_column ? ", `sku`" : "") . " FROM `" . $this->prefix . "product` WHERE `product_id` IN (" . $ids . ")") as $row) {
+		foreach ($this->getRows("SELECT `product_id`, `model`" . ($this->sku_in_product_code ? "" : ", `sku`") . " FROM `" . $this->prefix . "product` WHERE `product_id` IN (" . $ids . ")") as $row) {
 			$sku = $this->decode($row['sku'] ?? '');
 
 			$products[$this->getId($row)] = ['sku' => $sku !== '' ? $sku : $this->decode($row['model'] ?? ''), 'categories' => []];
 		}
 
-		if ($has_code_table) {
-			$codes = [];
+		if ($this->sku_in_product_code) {
+			$coded = [];
 
 			foreach ($this->getRows("SELECT `product_id`, `value` FROM `" . $this->prefix . "product_code` WHERE `code` = '" . self::SKU_CODE . "' AND `product_id` IN (" . $ids . ") ORDER BY `product_code_id`") as $row) {
-				$value = $this->decode($row['value'] ?? '');
 				$product_id = $this->getId($row);
+				$value = $this->decode($row['value'] ?? '');
 
-				if ($value !== '' && !isset($codes[$product_id])) {
-					$codes[$product_id] = $value;
-				}
-			}
-
-			foreach ($codes as $product_id => $code) {
-				if (isset($products[$product_id])) {
-					$products[$product_id]['sku'] = $code;
+				if ($value !== '' && isset($products[$product_id]) && !isset($coded[$product_id])) {
+					$products[$product_id]['sku'] = $value;
+					$coded[$product_id] = true;
 				}
 			}
 		}
@@ -77,26 +70,6 @@ class Catalog {
 		}
 
 		return $details;
-	}
-
-	/**
-	 * Where this OpenCart keeps the SKU: the sku column of the product up to 4.1.0.3 and the product_code table from 4.1.0.3.
-	 *
-	 * @return array{bool, bool}
-	 */
-	private function findSkuSources(): array {
-		$has_sku_column = false;
-		$has_code_table = false;
-
-		foreach ($this->getRows("SELECT `TABLE_NAME` FROM `information_schema`.`COLUMNS` WHERE `TABLE_SCHEMA` = DATABASE() AND ((`TABLE_NAME` = '" . $this->db->escape($this->prefix . 'product') . "' AND `COLUMN_NAME` = 'sku') OR (`TABLE_NAME` = '" . $this->db->escape($this->prefix . 'product_code') . "' AND `COLUMN_NAME` = 'value'))") as $row) {
-			if (($row['TABLE_NAME'] ?? '') === $this->prefix . 'product') {
-				$has_sku_column = true;
-			} else {
-				$has_code_table = true;
-			}
-		}
-
-		return [$has_sku_column, $has_code_table];
 	}
 
 	/**

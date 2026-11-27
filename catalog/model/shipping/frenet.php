@@ -5,6 +5,7 @@ use Frenet\Api;
 use Frenet\Config as FrenetConfig;
 use Frenet\Http\Client;
 use Frenet\Log as FrenetLog;
+use Frenet\Platform;
 use Frenet\Postcode;
 use Frenet\Quote\Builder;
 use Frenet\Quote\Catalog;
@@ -137,7 +138,7 @@ class Frenet extends Model {
 	 */
 	private function getCatalog(array $products, FrenetLog $log): array {
 		try {
-			return (new Catalog($this->db, DB_PREFIX, (int)$this->config->get('config_language_id'), (int)$this->config->get('config_store_id')))->getProducts(array_column($products, 'product_id'));
+			return (new Catalog($this->db, DB_PREFIX, (int)$this->config->get('config_language_id'), (int)$this->config->get('config_store_id'), (new Platform(VERSION))->hasSkuInProductCode()))->getProducts(array_column($products, 'product_id'));
 		} catch (Throwable $exception) {
 			$log->error('SKU and categories could not be read, quoting with the model only: ' . $exception->getMessage());
 
