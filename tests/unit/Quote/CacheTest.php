@@ -44,6 +44,16 @@ final class CacheTest extends TestCase {
 		self::assertSame(600, $this->store->expires['frenet.quote.key']);
 	}
 
+	public function testOnlyReadsWhenReadOnly(): void {
+		$cache = new Cache($this->store, false);
+
+		$cache->set('frenet.quote.new', self::BODY);
+		$this->store->set('frenet.quote.key', ['expires' => time() + 60, 'body' => self::BODY]);
+
+		self::assertArrayNotHasKey('frenet.quote.new', $this->store->entries);
+		self::assertSame(self::BODY, $cache->get('frenet.quote.key'));
+	}
+
 	public function testIgnoresAnExpiredEntryTheFileCacheStillReturns(): void {
 		$this->store->set('frenet.quote.key', ['expires' => time(), 'body' => self::BODY]);
 
