@@ -80,6 +80,15 @@ add_products() {
 		INSERT INTO oc_coupon SET name = 'Frenet 10%', code = 'FRENET10', type = 'P', discount = 10, logged = 0, shipping = 0, total = 0, date_start = '2020-01-01', date_end = '2099-12-31', uses_total = 100, uses_customer = 100, status = 1, date_added = NOW()"
 }
 
+check_simulator_install() {
+	local separator
+
+	separator=$([[ $OC_VERSION == 4.0.0.* || $OC_VERSION == 4.0.1.* ]] && echo '|' || echo '.')
+	[ "$(sql "SELECT CONCAT(\`trigger\`, ' ', action, ' ', status) FROM oc_event WHERE code = 'frenet_simulator'")" = "catalog/view/product/product/after extension/opencartfrenetv4/shipping/frenet${separator}addSimulator 1" ] \
+		|| fail "the simulator event is $(sql "SELECT CONCAT(\`trigger\`, ' ', action, ' ', status) FROM oc_event WHERE code = 'frenet_simulator'")"
+	[ "$(sql "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'opencart' AND TABLE_NAME = 'oc_frenet_simulator_limit'")" = 1 ] || fail "the table of the simulator limit was not created"
+}
+
 keep_results() {
 	mkdir -p "$ARTIFACTS/shots"
 	find "$DIR/test-results" -type f \( -name '*.png' -o -name '*.json' \) -exec cp {} "$ARTIFACTS/shots/" \; 2> /dev/null || true
@@ -215,11 +224,14 @@ if [ "$MODE" = upgrade ]; then
 	echo "Copying the new package over extension/opencartfrenetv4, as an update by FTP does"
 	dc cp "$PACKAGE" web:/tmp/opencartfrenetv4.ocmod.zip
 	dc exec -T web sh -euc 'cd /var/www/html/extension/opencartfrenetv4 && unzip -oq /tmp/opencartfrenetv4.ocmod.zip && chown -R www-data:www-data . && rm /tmp/opencartfrenetv4.ocmod.zip'
-	echo "Running Playwright $PLAYWRIGHT_VERSION: checkout and settings after the update"
+	echo "Running Playwright $PLAYWRIGHT_VERSION: checkout, settings and simulator after the update"
+	[ "$(sql "SELECT COUNT(*) FROM oc_event WHERE code = 'frenet_simulator'")" = 0 ] || fail "the update registered the simulator event before the settings were opened"
 	playwright @upgrade
+	check_simulator_install
 else
 	echo "Running Playwright $PLAYWRIGHT_VERSION: install, settings and checkout"
 	playwright @install
+	check_simulator_install
 
 	parser=/var/www/html/extension/opencartfrenetv4/system/library/frenet/quote/parser.php
 
@@ -283,6 +295,24 @@ else
 	frenet_log=$(store_log frenet.log)
 	! grep -q 'SKU and categories could not be read' <<< "$frenet_log" || fail "the SKU and categories of the cart could not be read"
 
+	echo "Running Playwright $PLAYWRIGHT_VERSION: product page simulator with the token simulator, guest and logged in"
+	sql "DELETE FROM oc_cart; DELETE FROM oc_frenet_simulator_limit; UPDATE oc_setting SET value = 'simulator' WHERE \`key\` = 'shipping_frenet_token'; UPDATE oc_product SET minimum = 2 WHERE product_id = 1005"
+	playwright @simulator-page
+	sql "UPDATE oc_product SET minimum = 1 WHERE product_id = 1005"
+
+	echo "Running Playwright $PLAYWRIGHT_VERSION: simulator limited to 3 quotes per IP and minute"
+	sql "DELETE FROM oc_cart; DELETE FROM oc_frenet_simulator_limit; DELETE FROM oc_setting WHERE \`key\` = 'shipping_frenet_simulator_limit'; INSERT INTO oc_setting (store_id, code, \`key\`, value, serialized) VALUES (0, 'shipping_frenet', 'shipping_frenet_simulator_limit', '3', 0)"
+	playwright @simulator-limit
+	[ "$(sql "SELECT COUNT(*) FROM oc_frenet_simulator_limit")" = 1 ] || fail "the simulator limit did not keep one row for the IP"
+	[ "$(sql "SELECT COUNT(*) FROM oc_frenet_simulator_limit WHERE CHAR_LENGTH(client) = 64 AND client NOT LIKE '%.%'")" = 1 ] || fail "the simulator limit did not keep the IP as a hash"
+	frenet_log=$(store_log frenet.log)
+	[ "$(grep -c 'Simulator quote limit reached (3 quotes per 60 seconds): IP .* blocked for [0-9]* seconds' <<< "$frenet_log")" = 1 ] || fail "frenet.log does not have the simulator block exactly once"
+
+	echo "Running Playwright $PLAYWRIGHT_VERSION: simulator turned off"
+	sql "DELETE FROM oc_setting WHERE \`key\` IN ('shipping_frenet_simulator', 'shipping_frenet_simulator_limit'); INSERT INTO oc_setting (store_id, code, \`key\`, value, serialized) VALUES (0, 'shipping_frenet', 'shipping_frenet_simulator', '0', 0)"
+	playwright @simulator-off
+	sql "DELETE FROM oc_setting WHERE \`key\` = 'shipping_frenet_simulator'; UPDATE oc_setting SET value = '$TOKEN' WHERE \`key\` = 'shipping_frenet_token'"
+
 	echo "Running Playwright $PLAYWRIGHT_VERSION: settings saved with a postcode of 4 digits and Frenet enabled without a token"
 	sql "DELETE FROM oc_setting WHERE \`key\` = 'shipping_frenet_token'; DELETE FROM oc_cart"
 	E2E_SCENARIO=invalid playwright @settings
@@ -316,5 +346,12 @@ grep -q "\"user-agent\":\"Frenet-OpenCart4/3.0.0 (OpenCart $OC_VERSION)\"" "$WOR
 dc exec -T -u www-data web php /check-library.php || fail "the Frenet library did not load with the OpenCart autoloader"
 php_errors=$(store_log error.log | grep -ci 'frenet' || true)
 [ "$php_errors" = 0 ] || fail "error.log has $php_errors line(s) about Frenet"
+
+if [ "$MODE" = install ]; then
+	echo "Running Playwright $PLAYWRIGHT_VERSION: Frenet uninstalled"
+	playwright @uninstall
+	[ "$(sql "SELECT COUNT(*) FROM oc_event WHERE code = 'frenet_simulator'")" = 0 ] || fail "the uninstall kept the simulator event"
+	[ "$(sql "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'opencart' AND TABLE_NAME = 'oc_frenet_simulator_limit'")" = 0 ] || fail "the uninstall kept the table of the simulator limit"
+fi
 
 echo "OK: OpenCart $OC_VERSION (PHP $PHP_VERSION) $MODE: Frenet quoted over HTTPS and order 1 placed with $(grep -o 'frenet\.[0-9A-Z]*' <<< "$order" | head -1)"
