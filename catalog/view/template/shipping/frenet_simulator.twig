@@ -1,11 +1,11 @@
 <div id="frenet-simulator" class="mb-3" data-quote-url="{{ quote_url }}" data-postcode-url="{{ postcode_url }}" data-error="{{ error_unavailable|escape }}" data-autofill="{{ autofill ? 1 : 0 }}">
   <label for="input-frenet-postcode" class="form-label">{{ entry_simulator_postcode }}</label>
   <div class="input-group">
-    <input type="text" value="" placeholder="{{ placeholder_simulator_postcode|escape }}" id="input-frenet-postcode" class="form-control" inputmode="numeric" maxlength="10" autocomplete="postal-code"/>
+    <input type="text" value="" placeholder="{{ placeholder_simulator_postcode|escape }}" id="input-frenet-postcode" class="form-control" inputmode="numeric" maxlength="10" autocomplete="postal-code" aria-describedby="error-frenet-postcode"/>
     <button type="button" id="button-frenet-simulator" class="btn btn-light" data-loading="{{ text_simulator_loading|escape }}">{{ button_simulator }}</button>
   </div>
   <div id="error-frenet-postcode" class="invalid-feedback"></div>
-  <div id="frenet-simulator-result" class="mt-2"></div>
+  <div id="frenet-simulator-result" class="mt-2" aria-live="polite"></div>
 </div>
 <script type="text/javascript"><!--
 (function() {
