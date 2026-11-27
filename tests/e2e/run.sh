@@ -253,6 +253,20 @@ else
 	grep -q 'Services with an error were left out.*Erro: Peso excedido.' <<< "$frenet_log" || fail "frenet.log does not have the Msg of the service with an error"
 	grep -qE 'Quote failed: Class "Frenet\\Quote\\Parser" not found \{"exception":"Error","at":"[^"]+/system/library/frenet/api\.php:[0-9]+","request":' <<< "$frenet_log" || fail "frenet.log does not have the unexpected error of the quote with its class, place and request"
 
+	for scenario in repeat failure; do
+		token=$([ "$scenario" = failure ] && echo flaky || echo cache-repeat)
+		echo "Running Playwright $PLAYWRIGHT_VERSION: quote cache in the scenario $scenario with the token $token (1 attempt)"
+		sql "DELETE FROM oc_cart; UPDATE oc_setting SET value = '$token' WHERE \`key\` = 'shipping_frenet_token'; UPDATE oc_setting SET value = '1' WHERE \`key\` = 'shipping_frenet_attempts'"
+		dc exec -T mock rm -f /tmp/frenet-mock-flaky
+		E2E_SCENARIO=$scenario playwright @cache
+	done
+
+	sql "DELETE FROM oc_cart; UPDATE oc_setting SET value = '$TOKEN' WHERE \`key\` = 'shipping_frenet_token'; UPDATE oc_setting SET value = '3' WHERE \`key\` = 'shipping_frenet_attempts'"
+	[ "$(grep -c '"token":"cache-repeat"' "$WORK/log/requests.jsonl")" = 1 ] || fail "the repeated quote did not come from the cache: the mock received $(grep -c '"token":"cache-repeat"' "$WORK/log/requests.jsonl") quotes"
+	[ "$(grep -c '"token":"flaky"' "$WORK/log/requests.jsonl")" = 2 ] || fail "the quote after a failure was not sent again once and then cached: the mock received $(grep -c '"token":"flaky"' "$WORK/log/requests.jsonl") quotes"
+	frenet_log=$(store_log frenet.log)
+	[ "$(grep -c 'Quote attempt 1/1 failed: HTTP 503: Mock failing every other quote' <<< "$frenet_log")" = 1 ] || fail "frenet.log does not have exactly one failed quote of the flaky token"
+
 	echo "Adding a shirt on sale, an e-book without shipping, products in lb and inches, in oz and millimetres and without measures, and a 10% coupon"
 	add_products
 
