@@ -123,11 +123,11 @@ jobs:
           - { opencart: 4.0.2.3, php: '8.3', mode: install }
           - { opencart: 4.0.2.3, php: '8.3', mode: upgrade }
           - { opencart: 4.1.0.0, php: '8.0', mode: install }
-          - { opencart: 4.1.0.0, php: '8.5', mode: install }
-          - { opencart: 4.1.0.0, php: '8.5', mode: upgrade }
+          - { opencart: 4.1.0.0, php: '8.4', mode: install }
+          - { opencart: 4.1.0.0, php: '8.4', mode: upgrade }
           - { opencart: 4.1.0.3, php: '8.0', mode: install }
-          - { opencart: 4.1.0.3, php: '8.5', mode: install }
-          - { opencart: 4.1.0.3, php: '8.5', mode: upgrade }
+          - { opencart: 4.1.0.3, php: '8.4', mode: install }
+          - { opencart: 4.1.0.3, php: '8.4', mode: upgrade }
           - { opencart: 4.1.0.4, php: '8.1', mode: install }
           - { opencart: 4.1.0.4, php: '8.5', mode: install }
           - { opencart: 4.1.0.4, php: '8.5', mode: upgrade }

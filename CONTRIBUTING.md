@@ -11,7 +11,7 @@ Um único pacote atende todas as versões do OpenCart 4, de **4.0.0.0 a 4.1.0.4*
 | 4.0.0.0 | 8.0 | 8.1 | 3.3 | `\|` | `title` |
 | 4.0.1.0 a 4.0.1.1 | 8.0 | 8.1 | 3.4 | `\|` | `title` |
 | 4.0.2.0 a 4.0.2.3 | 8.0 | 8.3 | 3.4 | `.` (aceita `\|`) | `name` |
-| 4.1.0.0 a 4.1.0.3 | 8.0 | 8.5 | 3.18 | `.` (aceita `\|`) | `name` |
+| 4.1.0.0 a 4.1.0.3 | 8.0 | 8.4 | 3.18 | `.` (aceita `\|`) | `name` |
 | 4.1.0.4 | 8.1 | 8.5 | 3.24 | `.` (aceita `\|`) | `name` |
 
 Em todas as versões o Twig roda com `autoescape` desligado.
@@ -19,7 +19,8 @@ Em todas as versões o Twig roda com `autoescape` desligado.
 O PHP máximo de cada faixa é o maior em que o próprio OpenCart roda, conferido pelo E2E. Acima dele, o core imprime avisos de obsoleto na página, os headers já foram enviados e o cookie de sessão do admin não é gravado:
 
 - 4.0.0.0 a 4.0.1.1 no PHP 8.2: propriedades dinâmicas do core;
-- 4.0.2.0 a 4.0.2.3 no PHP 8.4: parâmetro anulável implícito no Guzzle que vem com o OpenCart.
+- 4.0.2.0 a 4.0.2.3 no PHP 8.4: parâmetro anulável implícito no Guzzle que vem com o OpenCart;
+- 4.1.0.0 a 4.1.0.3 no PHP 8.5: `curl_close()` na moeda ECB do core, que o evento de moeda chama a cada `editSetting`. O aviso sai antes do JSON e quebra o salvar de qualquer configuração do admin, inclusive as do core.
 
 ### O que muda entre as versões
 
@@ -210,8 +211,8 @@ O CI roda o E2E em 7 versões: a instalação no menor e no maior PHP que cada u
 | 4.0.1.1 | PHP 8.0 e 8.1 | PHP 8.1 |
 | 4.0.2.0 | PHP 8.0 e 8.3 | PHP 8.3 |
 | 4.0.2.3 | PHP 8.0 e 8.3 | PHP 8.3 |
-| 4.1.0.0 | PHP 8.0 e 8.5 | PHP 8.5 |
-| 4.1.0.3 | PHP 8.0 e 8.5 | PHP 8.5 |
+| 4.1.0.0 | PHP 8.0 e 8.4 | PHP 8.4 |
+| 4.1.0.3 | PHP 8.0 e 8.4 | PHP 8.4 |
 | 4.1.0.4 | PHP 8.1 e 8.5 | PHP 8.5 |
 
 As capturas (instalador, configuração, frete no checkout e pedido no admin), os logs da loja e as cotações recebidas pelo mock ficam nos artefatos `e2e-<modo>-<versão>-php<versão>` da execução; vídeo e trace só quando o teste falha. O teste espera pela tela com localizadores e asserções do Playwright (`expect(...).toBeVisible()`), sem `networkidle` nem esperas fixas.
